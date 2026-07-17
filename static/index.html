@@ -2,96 +2,1079 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>RocketRide + Linkup Chat</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>verifAI — Live Fact Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/shared.css" />
 <style>
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: dark;
+    --font-display: "Newsreader", Georgia, "Times New Roman", serif;
+    --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --text-caption: 12px;
+    --text-body: 16px;
+    --text-title: 24px;
+    --text-display: 40px;
+    --bg: oklch(0.13 0.014 255);
+    --surface: oklch(0.17 0.016 255);
+    --surface-raised: oklch(0.21 0.018 255);
+    --border: oklch(0.28 0.018 255);
+    --border-subtle: oklch(0.24 0.014 255);
+    --ink: oklch(0.94 0.008 255);
+    --ink-muted: oklch(0.68 0.018 255);
+    --ink-faint: oklch(0.52 0.016 255);
+    --accent: oklch(0.72 0.11 170);
+    --accent-strong: oklch(0.62 0.14 170);
+    --accent-dim: oklch(0.72 0.11 170 / 0.14);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow: 0 1px 0 oklch(1 0 0 / 0.04) inset, 0 12px 40px oklch(0 0 0 / 0.35);
+    --z-composer: 10;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+    --transition: 180ms var(--ease-out);
+    --reveal-duration: 650ms;
+    --layout-max: 1280px;
+    --layout-sidebar: 380px;
+    --layout-gutter-wide: 40px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 720px;
+    font-family: var(--font-ui);
+    font-size: var(--text-body);
+    line-height: 1.5;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100dvh;
+    width: 100%;
+    max-width: var(--layout-max, 1280px);
     margin: 0 auto;
-    padding: 24px 16px 100px;
-    background: #0f1115;
-    color: #e6e6e6;
   }
-  h1 { font-size: 18px; font-weight: 600; color: #9aa4b2; margin-bottom: 4px; }
-  p.sub { color: #6b7280; font-size: 13px; margin-top: 0; margin-bottom: 24px; }
-  #messages { display: flex; flex-direction: column; gap: 12px; }
-  .msg { padding: 12px 14px; border-radius: 12px; line-height: 1.45; font-size: 14px; white-space: pre-wrap; }
-  .msg.user { align-self: flex-end; background: #2563eb; color: white; max-width: 80%; }
-  .msg.agent { align-self: flex-start; background: #1c1f26; border: 1px solid #2a2e37; max-width: 85%; }
-  .msg.pending { opacity: 0.6; font-style: italic; }
-  form {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    display: flex; gap: 8px;
-    padding: 16px; background: #0f1115; border-top: 1px solid #2a2e37;
+
+  .main {
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    min-height: 0;
   }
-  input {
-    flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid #2a2e37;
-    background: #1c1f26; color: #e6e6e6; font-size: 14px; max-width: 720px; margin: 0 auto;
+
+  .chat-pane {
+    padding: 4px 20px 0;
+    display: flex;
+    flex-direction: column;
   }
-  form { justify-content: center; }
-  input:focus { outline: 2px solid #2563eb; }
-  button {
-    padding: 12px 18px; border-radius: 10px; border: none;
-    background: #2563eb; color: white; font-size: 14px; cursor: pointer;
+
+  .messages {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 4px;
   }
-  button:disabled { opacity: 0.5; cursor: default; }
+
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    background: oklch(0.13 0.014 255 / 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; text-decoration: none; color: inherit; }
+
+  .brand-mark {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-family: var(--font-display);
+    font-size: var(--text-title);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+
+  .brand-text h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-title);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .brand-text h1 .brand-ai {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .brand-text p {
+    margin: 2px 0 0;
+    font-size: var(--text-caption);
+    color: var(--ink-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    font-size: var(--text-caption);
+    font-weight: 500;
+    color: var(--ink-muted);
+    white-space: nowrap;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    animation: pulse 2.4s var(--ease-out) infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-dot, .turn, .empty { animation: none !important; }
+  }
+
+  .empty {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 12px 0 16px;
+    animation: fade-in 400ms var(--ease-out);
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .empty-title {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: clamp(28px, 6vw, var(--text-display));
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+
+  .empty-desc {
+    margin: 0;
+    max-width: 42ch;
+    font-size: var(--text-body);
+    color: var(--ink-muted);
+    text-wrap: pretty;
+  }
+
+  .scroll-cue {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: var(--text-caption);
+    font-weight: 500;
+    color: var(--ink-faint);
+    cursor: pointer;
+    transition: color var(--transition);
+  }
+
+  .scroll-cue:hover { color: var(--accent); }
+  .scroll-cue:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+  .scroll-cue svg {
+    width: 14px;
+    height: 14px;
+    animation: cue-bob 2s var(--ease-out) infinite;
+  }
+
+  @keyframes cue-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(3px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scroll-cue svg { animation: none; }
+  }
+
+  .turn {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    animation: msg-enter 280ms var(--ease-out);
+  }
+
+  @keyframes msg-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .query {
+    align-self: flex-end;
+    max-width: min(88%, 520px);
+    padding: 12px 16px;
+    border-radius: var(--radius-md) var(--radius-md) 4px var(--radius-md);
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    font-size: var(--text-body);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .answer-card {
+    align-self: stretch;
+    padding: 18px;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow);
+  }
+
+  .answer-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: var(--text-caption);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .answer-label svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  .answer-body {
+    font-size: var(--text-body);
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 65ch;
+  }
+
+  .sources {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .sources-heading {
+    margin: 0 0 10px;
+    font-size: var(--text-caption);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .source-list { display: flex; flex-direction: column; gap: 6px; list-style: none; margin: 0; padding: 0; }
+
+  .source-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    border: 1px solid var(--border-subtle);
+    color: var(--ink);
+    text-decoration: none;
+    font-size: var(--text-caption);
+    transition: border-color var(--transition), background var(--transition);
+    min-width: 0;
+  }
+
+  .source-link:hover { border-color: var(--accent-strong); background: var(--accent-dim); }
+  .source-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .source-icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    background: var(--surface-raised);
+    color: var(--accent);
+    font-size: var(--text-caption);
+    font-weight: 600;
+  }
+
+  .source-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .source-host { display: block; font-size: var(--text-caption); color: var(--ink-faint); margin-top: 2px; }
+
+  .skeleton {
+    align-self: stretch;
+    padding: 18px;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .skeleton-line {
+    height: 12px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--surface-raised) 0%, oklch(0.26 0.018 255) 50%, var(--surface-raised) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s linear infinite;
+  }
+
+  .skeleton-line + .skeleton-line { margin-top: 10px; }
+  .skeleton-line:nth-child(1) { width: 92%; }
+  .skeleton-line:nth-child(2) { width: 78%; }
+  .skeleton-line:nth-child(3) { width: 54%; }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-line { animation: none; background: var(--surface-raised); }
+  }
+
+  .error-card {
+    padding: 16px 18px;
+    border-radius: var(--radius-md);
+    background: oklch(0.65 0.18 25 / 0.1);
+    border: 1px solid oklch(0.65 0.18 25 / 0.25);
+    font-size: var(--text-body);
+  }
+
+  .error-card strong {
+    display: block;
+    margin-bottom: 6px;
+    color: oklch(0.78 0.14 25);
+    font-weight: 600;
+    font-size: var(--text-title);
+  }
+
+  .composer-wrap {
+    position: sticky;
+    bottom: 0;
+    z-index: var(--z-composer);
+    margin-top: auto;
+    padding: 12px 20px 20px;
+    background: linear-gradient(to top, var(--bg) 70%, transparent);
+  }
+
+  .composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 10px 10px 10px 18px;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: border-color var(--transition);
+  }
+
+  .composer:focus-within { border-color: oklch(0.72 0.11 170 / 0.55); }
+
+  .composer-input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 0;
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    resize: none;
+    max-height: 120px;
+    line-height: 1.45;
+  }
+
+  .composer-input::placeholder { color: var(--ink-faint); }
+  .composer-input:focus { outline: none; }
+
+  .send-btn {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--accent-strong);
+    color: oklch(0.12 0.02 170);
+    cursor: pointer;
+    transition: opacity var(--transition), transform var(--transition);
+  }
+
+  .send-btn:hover:not(:disabled) { opacity: 0.92; }
+  .send-btn:active:not(:disabled) { transform: scale(0.96); }
+  .send-btn:disabled { opacity: 0.35; cursor: default; }
+  .send-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .send-btn svg { width: 18px; height: 18px; }
+
+  .composer-hint {
+    margin: 8px 4px 0;
+    font-size: var(--text-caption);
+    color: var(--ink-faint);
+    text-align: center;
+  }
+
+  .composer-hint kbd {
+    font: inherit;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    color: var(--ink-muted);
+  }
+
+  .showcase {
+    padding: 20px 20px 28px;
+    border-top: 1px solid var(--border-subtle);
+    background: linear-gradient(to bottom, transparent, oklch(0.15 0.014 255 / 0.5));
+  }
+
+  .showcase-intro {
+    margin-bottom: 20px;
+  }
+
+  .showcase-title {
+    margin: 0 0 6px;
+    font-family: var(--font-display);
+    font-size: var(--text-title);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .showcase-lead {
+    margin: 0;
+    max-width: 48ch;
+    font-size: var(--text-body);
+    color: var(--ink-muted);
+    text-wrap: pretty;
+  }
+
+  .demo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .demo-item {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .demo-platform {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-size: var(--text-body);
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .platform-logo {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+
+  .platform-logo svg,
+  .platform-logo img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+  }
+
+  .platform-logo-fox {
+    width: 54px;
+    height: 24px;
+  }
+
+  .demo-flow {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .demo-arrow {
+    display: grid;
+    place-items: center;
+    color: var(--accent);
+    font-size: 18px;
+    font-weight: 600;
+    align-self: center;
+  }
+
+  .mock-post,
+  .mock-result {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    background: var(--surface);
+  }
+
+  .mock-post-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: oklch(0.98 0.004 255);
+    color: oklch(0.2 0.02 255);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .mock-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, oklch(0.72 0.14 330), oklch(0.65 0.16 25));
+    flex-shrink: 0;
+  }
+
+  .mock-avatar.yt { background: linear-gradient(135deg, oklch(0.55 0.22 25), oklch(0.45 0.18 25)); }
+  .mock-avatar.news { background: linear-gradient(135deg, oklch(0.42 0.16 25), oklch(0.32 0.12 25)); }
+
+  .mock-post-media {
+    aspect-ratio: 1 / 1;
+    position: relative;
+    overflow: hidden;
+    background: oklch(0.92 0.03 145);
+  }
+
+  .mock-post-media.ig svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .mock-post-media.yt {
+    aspect-ratio: 16 / 9;
+    background: oklch(0.16 0.02 255);
+    position: relative;
+  }
+
+  .mock-post-media.yt svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .mock-yt-duration {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: oklch(0 0 0 / 0.82);
+    color: oklch(0.98 0 0);
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-ui);
+  }
+
+  .mock-post-media.news {
+    aspect-ratio: 16 / 9;
+    background: oklch(0.18 0.04 25);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 16px;
+    position: relative;
+  }
+
+  .mock-news-tag {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    padding: 4px 8px;
+    background: oklch(0.55 0.22 25);
+    color: white;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    font-family: var(--font-ui);
+  }
+
+  .mock-news-headline {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: oklch(0.98 0.01 255);
+    text-wrap: balance;
+  }
+
+  .mock-post-foot.yt {
+    padding: 10px 12px 12px;
+    background: oklch(0.98 0.004 255);
+    color: oklch(0.2 0.02 255);
+  }
+
+  .mock-yt-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: oklch(0.15 0.02 255);
+  }
+
+  .mock-yt-meta {
+    margin: 4px 0 0;
+    font-size: 11px;
+    color: oklch(0.45 0.02 255);
+  }
+
+  .mock-ig-actions {
+    display: flex;
+    gap: 14px;
+    padding: 10px 12px 0;
+    background: oklch(0.98 0.004 255);
+    color: oklch(0.25 0.02 255);
+  }
+
+  .mock-ig-actions svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .mock-post-caption {
+    padding: 8px 12px 12px;
+    background: oklch(0.98 0.004 255);
+    color: oklch(0.35 0.02 255);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .mock-post-caption strong {
+    color: oklch(0.15 0.02 255);
+    font-weight: 600;
+  }
+
+  .mock-result-label {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: var(--text-caption);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--bg);
+  }
+
+  .mock-result-body {
+    padding: 12px;
+  }
+
+  .verdict {
+    display: inline-block;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .verdict.false { background: oklch(0.65 0.18 25 / 0.18); color: oklch(0.78 0.14 25); }
+  .verdict.mixed { background: oklch(0.75 0.14 85 / 0.18); color: oklch(0.82 0.12 85); }
+  .verdict.true { background: var(--accent-dim); color: var(--accent); }
+
+  .mock-result-text {
+    margin: 0 0 10px;
+    font-size: var(--text-caption);
+    color: var(--ink-muted);
+    line-height: 1.5;
+  }
+
+  .mock-source {
+    display: block;
+    font-size: 11px;
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .mock-source:hover { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    .demo-flow {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .demo-arrow {
+      padding: 0;
+      transform: rotate(90deg);
+    }
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (max-width: 480px) {
+    .header, .composer-wrap { padding-left: 16px; padding-right: 16px; }
+    .chat-pane, .showcase { padding-left: 16px; padding-right: 16px; }
+    .status span:last-child { display: none; }
+    .empty-title { font-size: 32px; }
+    .brand-text h1 { font-size: 20px; }
+  }
+
+  @media (min-width: 1024px) {
+    .main {
+      display: grid;
+      grid-template-columns: minmax(320px, 42%) 1fr;
+      align-items: start;
+      gap: 0 40px;
+    }
+
+    .chat-pane {
+      grid-column: 1;
+      grid-row: 1;
+      position: sticky;
+      top: 0;
+      align-self: start;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: calc(100dvh - 73px);
+      padding: 32px 0;
+      background: var(--bg);
+    }
+
+    .messages {
+      flex: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .empty {
+      padding: 0;
+    }
+
+    .empty-title {
+      font-size: clamp(36px, 3.4vw, 48px);
+      max-width: 11ch;
+      margin-bottom: 12px;
+    }
+
+    .empty-desc {
+      max-width: 34ch;
+      font-size: 18px;
+      line-height: 1.55;
+    }
+
+    .scroll-cue {
+      display: none;
+    }
+
+    .composer-wrap {
+      position: static;
+      padding: 20px 0 0;
+      background: none;
+    }
+
+    .composer-hint {
+      text-align: left;
+    }
+
+    .showcase {
+      grid-column: 2;
+      grid-row: 1;
+      padding: 24px 0 48px;
+      border-top: none;
+      background: none;
+    }
+
+    .showcase-title {
+      font-size: 28px;
+    }
+
+    .showcase-lead {
+      max-width: 52ch;
+      font-size: 17px;
+    }
+
+    .demo-list {
+      gap: 32px;
+    }
+
+    .demo-flow {
+      gap: 16px;
+    }
+  }
 </style>
 </head>
 <body>
-  <h1>RocketRide + Linkup</h1>
-  <p class="sub">Grounded chat agent — every factual answer is cited to a live source URL.</p>
-  <div id="messages"></div>
+  <div class="app">
+    <header class="header">
+      <a class="brand" href="./">
+        <div class="brand-mark" aria-hidden="true">V</div>
+        <div class="brand-text">
+          <h1>verif<span class="brand-ai">AI</span></h1>
+          <p>Live fact-check · RocketRide + Linkup</p>
+        </div>
+      </a>
+      <nav class="page-nav" aria-label="Pages">
+        <a href="./" aria-current="page">Home</a>
+        <a href="check/?demo=1">Fact check</a>
+      </nav>
+      <div class="status" role="status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Web grounded</span>
+      </div>
+    </header>
 
-  <form id="chat-form">
-    <input id="input" type="text" placeholder="Ask something..." autocomplete="off" autofocus />
-    <button id="send" type="submit">Send</button>
-  </form>
+    <main class="main" id="main-scroll" data-scroll-root>
+      <div class="chat-pane">
+        <div class="messages" id="messages" aria-live="polite" aria-relevant="additions">
+          <div class="empty" id="empty">
+            <h2 class="empty-title">Paste a post. See the sources.</h2>
+            <p class="empty-desc">Drop in a link, headline, or caption from social media or news. verifAI fact-checks it against the live web.</p>
+            <button type="button" class="scroll-cue" id="scroll-cue">
+              See examples
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+            </button>
+          </div>
+        </div>
 
+        <div class="composer-wrap">
+          <form class="composer" id="chat-form">
+            <label for="input" class="visually-hidden">Paste a post or claim to fact-check</label>
+            <textarea id="input" class="composer-input" rows="1" placeholder="Paste a post, article, or claim to verify…" autocomplete="off" autofocus></textarea>
+            <button type="submit" class="send-btn" id="send" aria-label="Send">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+              </svg>
+            </button>
+          </form>
+          <p class="composer-hint"><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for new line</p>
+        </div>
+      </div>
+
+      <section class="showcase" id="showcase" aria-labelledby="showcase-title">
+        <div class="showcase-intro scroll-reveal">
+          <h2 class="showcase-title" id="showcase-title">See verifAI in action</h2>
+          <p class="showcase-lead">verifAI reads posts and headlines, then returns a sourced fact-check automatically.</p>
+        </div>
+
+        <ol class="demo-list">
+          <li class="demo-item scroll-reveal" style="--reveal-delay: 0ms">
+            <h3 class="demo-platform">
+              <span class="platform-logo" aria-hidden="true">
+                <img src="instagram-logo-2022.svg" alt="" width="26" height="26" decoding="async" />
+              </span>
+              Instagram
+            </h3>
+            <div class="demo-flow">
+              <article class="mock-post" aria-label="Example Instagram post">
+                <div class="mock-post-head">
+                  <span class="mock-avatar" aria-hidden="true"></span>
+                  wellness.daily
+                </div>
+                <div class="mock-post-media ig" aria-hidden="true">
+                  <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Post image of herbal supplement">
+                    <rect width="400" height="400" fill="#d8ead8"/>
+                    <ellipse cx="200" cy="290" rx="120" ry="18" fill="#b8cdb8"/>
+                    <rect x="155" y="130" width="90" height="130" rx="12" fill="#f4f8f4" stroke="#7aa87a" stroke-width="3"/>
+                    <rect x="168" y="95" width="64" height="28" rx="6" fill="#5e9a5e"/>
+                    <circle cx="200" cy="200" r="28" fill="#8bc48b"/>
+                    <path d="M120 250 Q160 210 200 230 T280 250" fill="none" stroke="#5e9a5e" stroke-width="8" stroke-linecap="round"/>
+                    <path d="M250 120 Q280 80 310 110" fill="none" stroke="#5e9a5e" stroke-width="6" stroke-linecap="round"/>
+                    <text x="200" y="355" text-anchor="middle" font-family="Georgia, serif" font-size="22" font-weight="600" fill="#2f5a2f">Reverse diabetes in 48hrs</text>
+                  </svg>
+                </div>
+                <div class="mock-ig-actions" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.4 8.4 0 01-9-8.4 8.4 8.4 0 019-8.4 8.4 8.4 0 019 8.4z"/><path d="M3 11.5h18"/></svg>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                </div>
+                <p class="mock-post-caption"><strong>wellness.daily</strong> 🌿 Doctors hate this! Link in bio. #health #naturalcure</p>
+              </article>
+              <div class="demo-arrow" aria-hidden="true">→</div>
+              <article class="mock-result" aria-label="verifAI fact check">
+                <div class="mock-result-label">Fact check</div>
+                <div class="mock-result-body">
+                  <span class="verdict false">Misleading</span>
+                  <p class="mock-result-text">The post claims a herb reverses diabetes in 48 hours. No clinical evidence supports that timeline. NIH guidelines describe diabetes as a chronic condition managed with medication and lifestyle.</p>
+                  <a class="mock-source" href="#">nih.gov · diabetes treatment guidelines</a>
+                </div>
+              </article>
+            </div>
+          </li>
+
+          <li class="demo-item scroll-reveal" style="--reveal-delay: 60ms">
+            <h3 class="demo-platform">
+              <span class="platform-logo" aria-hidden="true">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="#FF0000" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8z"/>
+                  <path fill="#fff" d="M9.75 15.02l6.19-3.52-6.19-3.52v7.04z"/>
+                </svg>
+              </span>
+              YouTube
+            </h3>
+            <div class="demo-flow">
+              <article class="mock-post" aria-label="Example YouTube video">
+                <div class="mock-post-media yt" aria-hidden="true">
+                  <svg viewBox="0 0 640 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Video thumbnail">
+                    <rect width="640" height="360" fill="#1a2030"/>
+                    <rect x="40" y="220" width="80" height="100" fill="#2a3550"/>
+                    <rect x="140" y="180" width="80" height="140" fill="#3d4f78"/>
+                    <rect x="240" y="140" width="80" height="180" fill="#c0392b"/>
+                    <rect x="340" y="200" width="80" height="120" fill="#2a3550"/>
+                    <rect x="440" y="160" width="80" height="160" fill="#3d4f78"/>
+                    <rect x="540" y="190" width="60" height="130" fill="#2a3550"/>
+                    <line x1="40" y1="320" x2="600" y2="320" stroke="#8899bb" stroke-width="2"/>
+                    <circle cx="320" cy="180" r="36" fill="#cc0000"/>
+                    <path d="M308 162 L348 180 L308 198 Z" fill="white"/>
+                  </svg>
+                  <span class="mock-yt-duration">12:04</span>
+                </div>
+                <div class="mock-post-foot yt">
+                  <p class="mock-yt-title">BREAKING: Fed cuts rates to zero tomorrow. What this means for your 401(k)</p>
+                  <p class="mock-yt-meta">MarketWatch Daily · 842K views · 2 hours ago</p>
+                </div>
+              </article>
+              <div class="demo-arrow" aria-hidden="true">→</div>
+              <article class="mock-result" aria-label="verifAI fact check">
+                <div class="mock-result-label">Fact check</div>
+                <div class="mock-result-body">
+                  <span class="verdict false">False</span>
+                  <p class="mock-result-text">The video title claims the Fed cut rates to zero tomorrow. Federal Reserve releases show no such decision. The headline exaggerates current policy for clickbait.</p>
+                  <a class="mock-source" href="#">federalreserve.gov · latest FOMC statement</a>
+                </div>
+              </article>
+            </div>
+          </li>
+
+          <li class="demo-item scroll-reveal" style="--reveal-delay: 120ms">
+            <h3 class="demo-platform">
+              <span class="platform-logo platform-logo-fox" aria-hidden="true">
+                <svg viewBox="0 0 58 26" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="58" height="26" rx="3" fill="#003366"/>
+                  <text x="7" y="17" font-family="Georgia, 'Times New Roman', serif" font-size="14" font-weight="700" fill="#FFFFFF">FOX</text>
+                  <text x="34" y="17" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" letter-spacing="0.6" fill="#C20017">NEWS</text>
+                  <rect x="0" y="23" width="58" height="3" fill="#C20017"/>
+                </svg>
+              </span>
+              Fox News
+            </h3>
+            <div class="demo-flow">
+              <article class="mock-post" aria-label="Example news headline">
+                <div class="mock-post-media news">
+                  <span class="mock-news-tag">BREAKING</span>
+                  <h4 class="mock-news-headline">City passes total ban on gas cars starting next month</h4>
+                </div>
+              </article>
+              <div class="demo-arrow" aria-hidden="true">→</div>
+              <article class="mock-result" aria-label="verifAI fact check">
+                <div class="mock-result-label">Fact check</div>
+                <div class="mock-result-body">
+                  <span class="verdict mixed">Partially true</span>
+                  <p class="mock-result-text">The headline implies an immediate total ban. A city council proposal targets new sales after 2030. The article omits the timeline and scope of the policy.</p>
+                  <a class="mock-source" href="#">reuters.com · city council vote coverage</a>
+                </div>
+              </article>
+            </div>
+          </li>
+        </ol>
+      </section>
+    </main>
+  </div>
+
+  <script src="js/reveal.js"></script>
   <script>
     const messagesEl = document.getElementById('messages');
+    const mainScroll = document.getElementById('main-scroll');
+    const emptyEl = document.getElementById('empty');
     const form = document.getElementById('chat-form');
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('send');
+    const STORAGE_KEY = 'verifai-check-input';
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    function addMessage(text, role) {
-      const div = document.createElement('div');
-      div.className = `msg ${role}`;
-      div.textContent = text;
-      messagesEl.appendChild(div);
-      window.scrollTo(0, document.body.scrollHeight);
-      return div;
+    document.getElementById('scroll-cue')?.addEventListener('click', () => {
+      const showcase = document.getElementById('showcase');
+      if (!showcase || !mainScroll) return;
+      mainScroll.scrollTo({
+        top: Math.max(0, showcase.offsetTop - 12),
+        behavior: reducedMotion ? 'auto' : 'smooth',
+      });
+    });
+
+    function autoResize() {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
     }
 
-    form.addEventListener('submit', async (e) => {
+    input.addEventListener('input', autoResize);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+    });
+
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
       const message = input.value.trim();
       if (!message) return;
-
-      addMessage(message, 'user');
-      input.value = '';
-      input.disabled = true;
-      sendBtn.disabled = true;
-
-      const pending = addMessage('Thinking…', 'agent pending');
-
-      try {
-        const res = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message }),
-        });
-        const data = await res.json();
-        pending.textContent = data.answer;
-        pending.classList.remove('pending');
-      } catch (err) {
-        pending.textContent = 'Error: ' + err.message;
-        pending.classList.remove('pending');
-      } finally {
-        input.disabled = false;
-        sendBtn.disabled = false;
-        input.focus();
-      }
+      sessionStorage.setItem(STORAGE_KEY, message);
+      window.location.href = 'check/';
     });
   </script>
 </body>

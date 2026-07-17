@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fact check · verifAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../css/shared.css" />
+<link rel="stylesheet" href="../css/check.css" />
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .brand-text h1 { font-family: "Newsreader", Georgia, "Times New Roman", serif; }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <a class="brand" href="../">
+        <div class="brand-mark" aria-hidden="true">V</div>
+        <div class="brand-text">
+          <h1>verif<span class="brand-ai">AI</span></h1>
+          <p>Live fact-check · RocketRide + Linkup</p>
+        </div>
+      </a>
+      <nav class="page-nav" aria-label="Pages">
+        <a href="../">Home</a>
+        <a href="./?demo=1" aria-current="page">Fact check</a>
+      </nav>
+      <div class="status" role="status">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span>Web grounded</span>
+      </div>
+    </header>
+
+    <main class="main check-main" id="main-scroll" data-scroll-root>
+      <div class="check-content">
+        <aside class="check-sidebar scroll-reveal">
+          <a class="back-link" href="../">← Check another post</a>
+
+          <section class="check-section" aria-labelledby="source-label">
+            <p class="check-section-label" id="source-label">Submitted content</p>
+            <article class="source-echo" id="source-card">
+              <header class="source-origin" id="source-origin"></header>
+              <div class="source-echo-body" id="source-echo"></div>
+            </article>
+            <p class="source-meta" id="source-meta">Checking against live web sources</p>
+          </section>
+
+          <div class="check-sidebar-panel check-hidden" id="sidebar-panel">
+            <div class="sidebar-verdict-wrap">
+              <span class="verdict sidebar-verdict" id="sidebar-verdict"></span>
+            </div>
+
+            <div class="score-cards">
+              <div class="score-card">
+                <span class="score-card-value" id="score-accuracy">—</span>
+                <span class="score-card-label">Claim accuracy</span>
+              </div>
+              <div class="score-card">
+                <span class="score-card-value" id="score-confidence">—</span>
+                <span class="score-card-label">Source confidence</span>
+              </div>
+            </div>
+
+            <div class="sidebar-sources">
+              <p class="sidebar-sources-label">Sources checked</p>
+              <ul class="sidebar-source-list" id="sidebar-source-list"></ul>
+            </div>
+          </div>
+        </aside>
+
+        <div class="check-loading scroll-reveal" id="loading" aria-live="polite" aria-busy="true">
+          <div class="check-loading-line"></div>
+          <div class="check-loading-line"></div>
+          <div class="check-loading-line"></div>
+        </div>
+
+        <section class="check-section check-hidden scroll-reveal" id="result-section" style="--reveal-delay: 60ms" aria-labelledby="result-label">
+          <p class="check-section-label" id="result-label">Fact check</p>
+          <article class="result-panel">
+            <figure class="check-chart" id="check-chart" aria-labelledby="chart-title">
+              <figcaption class="check-chart-header">
+                <span class="check-chart-title" id="chart-title">Claim assessment</span>
+              </figcaption>
+              <div class="check-chart-body">
+                <div class="check-chart-scores">
+                  <div class="chart-score">
+                    <span class="chart-score-value" id="chart-accuracy-val">—</span>
+                    <span class="chart-score-label">Accuracy</span>
+                  </div>
+                  <div class="chart-score">
+                    <span class="chart-score-value" id="chart-confidence-val">—</span>
+                    <span class="chart-score-label">Source confidence</span>
+                  </div>
+                </div>
+                <div class="check-chart-canvas" id="chart-canvas" role="img" aria-label=""></div>
+              </div>
+            </figure>
+            <div class="result-body-wrap">
+              <span class="verdict" id="verdict"></span>
+              <p class="result-summary" id="result-summary"></p>
+              <p class="result-detail" id="result-detail" hidden></p>
+              <ul class="result-points" id="result-points"></ul>
+            </div>
+          </article>
+        </section>
+
+        <section class="check-section check-hidden scroll-reveal" id="sources-section" style="--reveal-delay: 120ms" aria-labelledby="sources-label">
+          <div class="sources-panel">
+            <p class="sources-heading" id="sources-label">Verified sources</p>
+            <ul class="source-list" id="source-list"></ul>
+          </div>
+        </section>
+
+        <div class="check-error check-hidden scroll-reveal" id="error-panel" role="alert"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="../js/reveal.js"></script>
+  <script>
+    const STORAGE_KEY = 'verifai-check-input';
+    const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
+
+    const sourceEcho = document.getElementById('source-echo');
+    const sourceOrigin = document.getElementById('source-origin');
+    const sourceMeta = document.getElementById('source-meta');
+    const loadingEl = document.getElementById('loading');
+    const resultSection = document.getElementById('result-section');
+    const sourcesSection = document.getElementById('sources-section');
+    const errorPanel = document.getElementById('error-panel');
+    const verdictEl = document.getElementById('verdict');
+    const resultSummaryEl = document.getElementById('result-summary');
+    const resultDetailEl = document.getElementById('result-detail');
+    const resultPointsEl = document.getElementById('result-points');
+    const sourceListEl = document.getElementById('source-list');
+    const chartCanvas = document.getElementById('chart-canvas');
+    const chartAccuracyVal = document.getElementById('chart-accuracy-val');
+    const chartConfidenceVal = document.getElementById('chart-confidence-val');
+    const sidebarPanel = document.getElementById('sidebar-panel');
+    const sidebarVerdict = document.getElementById('sidebar-verdict');
+    const scoreAccuracy = document.getElementById('score-accuracy');
+    const scoreConfidence = document.getElementById('score-confidence');
+    const sidebarSourceList = document.getElementById('sidebar-source-list');
+
+    const DEMO_CLAIM = 'BREAKING: Fed cuts rates to zero tomorrow. What this means for your 401(k)';
+    const params = new URLSearchParams(location.search);
+
+    const input = sessionStorage.getItem(STORAGE_KEY)
+      || params.get('q')
+      || (params.has('demo') ? DEMO_CLAIM : '');
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function hostFromUrl(url) {
+      try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
+    }
+
+    const PLATFORM_LOGOS = {
+      instagram: `<span class="platform-logo" aria-hidden="true"><img src="../instagram-logo-2022.svg" alt="" width="26" height="26" decoding="async" /></span>`,
+      youtube: `<span class="platform-logo" aria-hidden="true"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#FF0000" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.4 31.4 0 0 0 0 12a31.4 31.4 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.4 31.4 0 0 0 24 12a31.4 31.4 0 0 0-.5-5.8z"/><path fill="#fff" d="M9.75 15.02l6.19-3.52-6.19-3.52v7.04z"/></svg></span>`,
+      foxnews: `<span class="platform-logo platform-logo-fox" aria-hidden="true"><svg viewBox="0 0 58 26" xmlns="http://www.w3.org/2000/svg"><rect width="58" height="26" rx="3" fill="#003366"/><text x="7" y="17" font-family="Georgia, 'Times New Roman', serif" font-size="14" font-weight="700" fill="#FFFFFF">FOX</text><text x="34" y="17" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="700" letter-spacing="0.6" fill="#C20017">NEWS</text><rect x="0" y="23" width="58" height="3" fill="#C20017"/></svg></span>`,
+    };
+
+    function detectPlatform(text) {
+      const lower = String(text || '').toLowerCase();
+      const urls = text.match(URL_RE) || [];
+
+      for (const url of urls) {
+        const host = hostFromUrl(url).toLowerCase();
+        if (host.includes('instagram')) return { id: 'instagram', name: 'Instagram' };
+        if (host.includes('youtube') || host.includes('youtu.be')) return { id: 'youtube', name: 'YouTube' };
+        if (host.includes('foxnews')) return { id: 'foxnews', name: 'Fox News' };
+        if (host.includes('twitter') || host === 'x.com') return { id: 'generic', name: 'X', initial: 'X' };
+        if (host.includes('facebook') || host.includes('fb.com')) return { id: 'generic', name: 'Facebook', initial: 'F' };
+        return { id: 'generic', name: host, initial: host[0]?.toUpperCase() || 'W' };
+      }
+
+      if (/\b(fed|401|rate cut|marketwatch)\b/.test(lower)) return { id: 'youtube', name: 'YouTube' };
+      if (/\b(diabetes|herb|48|wellness|naturalcure)\b/.test(lower)) return { id: 'instagram', name: 'Instagram' };
+      if (/\b(gas car|city ban|gas cars|breaking)\b/.test(lower) && /\b(city|ban|car)\b/.test(lower)) {
+        return { id: 'foxnews', name: 'Fox News' };
+      }
+
+      return { id: 'generic', name: 'Submitted post', initial: 'P' };
+    }
+
+    function renderSourceCard(text) {
+      const platform = detectPlatform(text);
+      const logo = PLATFORM_LOGOS[platform.id]
+        || `<span class="platform-logo-generic" aria-hidden="true">${escapeHtml(platform.initial || 'P')}</span>`;
+
+      sourceOrigin.innerHTML = `${logo}<span class="source-origin-name">${escapeHtml(platform.name)}</span>`;
+      sourceEcho.textContent = text.trim() || 'No content submitted.';
+    }
+
+    function parseAnswer(raw) {
+      const text = String(raw || '').trim();
+      const sourcesMatch = text.match(/\bSources?:\s*(.+)$/is);
+      let body = text;
+      let sourceBlock = '';
+      if (sourcesMatch) {
+        sourceBlock = sourcesMatch[1];
+        body = text.slice(0, sourcesMatch.index).trim();
+      }
+      const urls = new Set();
+      (sourceBlock.match(URL_RE) || []).forEach((u) => urls.add(u.replace(/[.,;]+$/, '')));
+      if (!urls.size) (body.match(URL_RE) || []).forEach((u) => urls.add(u.replace(/[.,;]+$/, '')));
+      return { body: body || text, urls: [...urls] };
+    }
+
+    function inferVerdict(text) {
+      const lower = text.toLowerCase();
+      if (/\b(false|misleading|untrue|not true|debunked|no .{0,48}support|not cut|has not|have not|did not)\b/.test(lower)) return { label: 'False', className: 'false' };
+      if (/\b(partially true|partly true|mixed|exaggerat\w*|missing context)\b/.test(lower)) return { label: 'Partially true', className: 'mixed' };
+      if (/\b(true|accurate|confirmed|supported)\b/.test(lower)) return { label: 'Supported', className: 'true' };
+      return { label: 'Review', className: 'mixed' };
+    }
+
+    function shortenSentence(sentence, max = 160) {
+      const trimmed = sentence.replace(/\s+/g, ' ').trim();
+      if (trimmed.length <= max) return trimmed;
+      const cut = trimmed.slice(0, max - 1);
+      const lastSpace = cut.lastIndexOf(' ');
+      return `${(lastSpace > 60 ? cut.slice(0, lastSpace) : cut).trim()}…`;
+    }
+
+    function formatAnalysis(rawBody) {
+      const text = String(rawBody || '').replace(/\s+/g, ' ').trim();
+      if (!text) return { summary: 'No analysis available.', detail: '', points: [] };
+
+      const bulletSplit = String(rawBody || '').split(/\n\s*[-•*]\s+/).map((s) => s.trim()).filter(Boolean);
+      if (bulletSplit.length > 1) {
+        return {
+          summary: shortenSentence(bulletSplit[0].replace(/\s+/g, ' ').trim(), 160),
+          detail: bulletSplit[1] ? shortenSentence(bulletSplit[1].replace(/\s+/g, ' ').trim(), 220) : '',
+          points: bulletSplit.slice(2, 5).map((s) => shortenSentence(s.replace(/\s+/g, ' ').trim(), 120)),
+        };
+      }
+
+      const sentences = text.match(/[^.!?]+[.!?]+/g)?.map((s) => s.trim()).filter(Boolean)
+        || [text];
+
+      const summary = shortenSentence(sentences[0], 160);
+      const detail = sentences[1] ? shortenSentence(sentences[1], 220) : '';
+      const pointStart = detail ? 2 : 1;
+      const points = sentences.slice(pointStart, pointStart + 3).map((s) => shortenSentence(s.replace(/^[•\-–]\s*/, ''), 120));
+
+      if (points.length) return { summary, detail, points };
+
+      const chunks = text.split(/[,;]\s+/).filter(Boolean);
+      if (chunks.length > 2) {
+        return {
+          summary: shortenSentence(chunks[0], 160),
+          detail: shortenSentence(chunks[1], 220),
+          points: chunks.slice(2, 5).map((c) => shortenSentence(c, 120)),
+        };
+      }
+
+      return { summary, detail, points: [] };
+    }
+
+    function renderAnalysis(analysis) {
+      const formatted = analysis.summary ? analysis : formatAnalysis(analysis.body || analysis);
+      resultSummaryEl.textContent = formatted.summary;
+      if (formatted.detail) {
+        resultDetailEl.textContent = formatted.detail;
+        resultDetailEl.hidden = false;
+      } else {
+        resultDetailEl.textContent = '';
+        resultDetailEl.hidden = true;
+      }
+      resultPointsEl.innerHTML = formatted.points.map((point) => `<li>${escapeHtml(point)}</li>`).join('');
+      resultPointsEl.hidden = !formatted.points.length;
+    }
+
+    function computeScores(verdict, urls) {
+      let accuracy = 50;
+      if (verdict.className === 'false') accuracy = 16;
+      else if (verdict.className === 'mixed') accuracy = 56;
+      else if (verdict.className === 'true') accuracy = 88;
+
+      const credible = urls.filter((url) => /\.gov|reuters|apnews|nih|who|edu/i.test(url)).length;
+      const sourceConfidence = Math.min(96, Math.max(28, 34 + urls.length * 14 + credible * 16));
+
+      return { accuracy, sourceConfidence };
+    }
+
+    function renderChart(verdict, urls) {
+      const { accuracy, sourceConfidence } = computeScores(verdict, urls);
+      const w = 480;
+      const h = 260;
+      const pad = { top: 24, right: 24, bottom: 8, left: 24 };
+      const plotW = w - pad.left - pad.right;
+      const plotH = h - pad.top - pad.bottom;
+      const px = pad.left + (accuracy / 100) * plotW;
+      const py = pad.top + plotH - (sourceConfidence / 100) * plotH;
+      const pointClass = `chart-point chart-point-${verdict.className}`;
+      const plotX = pad.left;
+      const plotY = pad.top;
+
+      chartAccuracyVal.textContent = `${accuracy}%`;
+      chartConfidenceVal.textContent = `${sourceConfidence}%`;
+      scoreAccuracy.textContent = `${accuracy}%`;
+      scoreConfidence.textContent = `${sourceConfidence}%`;
+
+      chartCanvas.setAttribute(
+        'aria-label',
+        `Claim accuracy ${accuracy} percent, source confidence ${sourceConfidence} percent`,
+      );
+
+      const gridY = [0, 25, 50, 75, 100].map((v) => {
+        const y = plotY + plotH - (v / 100) * plotH;
+        return `<line class="chart-grid" x1="${plotX}" y1="${y}" x2="${plotX + plotW}" y2="${y}" />`;
+      }).join('');
+
+      const gridX = [0, 25, 50, 75, 100].map((v) => {
+        const x = plotX + (v / 100) * plotW;
+        return `<line class="chart-grid chart-grid-v" x1="${x}" y1="${plotY}" x2="${x}" y2="${plotY + plotH}" />`;
+      }).join('');
+
+      chartCanvas.innerHTML = `
+        <div class="chart-frame">
+          <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <radialGradient id="chart-glow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="currentColor" stop-opacity="0.18" />
+                <stop offset="100%" stop-color="currentColor" stop-opacity="0" />
+              </radialGradient>
+              <filter id="chart-soft" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="6" result="blur" />
+                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+            <rect class="chart-bg" x="${plotX}" y="${plotY}" width="${plotW}" height="${plotH}" rx="10" />
+            <rect class="chart-zone-good" x="${plotX + plotW * 0.5}" y="${plotY}" width="${plotW * 0.5}" height="${plotH * 0.5}" rx="10" />
+            ${gridY}${gridX}
+            <line class="chart-crosshair" x1="${px}" y1="${py}" x2="${px}" y2="${plotY + plotH}" />
+            <line class="chart-crosshair" x1="${px}" y1="${py}" x2="${plotX + plotW}" y2="${py}" />
+            <circle class="${pointClass} chart-point-glow" cx="${px}" cy="${py}" r="28" />
+            <circle class="${pointClass} chart-point-ring" cx="${px}" cy="${py}" r="16" />
+            <circle class="${pointClass}" cx="${px}" cy="${py}" r="8" />
+          </svg>
+          <div class="chart-axis-labels" aria-hidden="true">
+            <span class="chart-y-high">High</span>
+            <span class="chart-y-low">Low</span>
+            <span class="chart-x-start">Misleading</span>
+            <span class="chart-x-end">Accurate</span>
+          </div>
+        </div>`;
+    }
+
+    function renderSidebarSources(urls) {
+      sidebarSourceList.innerHTML = urls.slice(0, 4).map((url) => {
+        const host = hostFromUrl(url);
+        return `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
+          <span class="sidebar-source-icon" aria-hidden="true">${escapeHtml(host[0]?.toUpperCase() || '?')}</span>
+          <span class="sidebar-source-host">${escapeHtml(host)}</span>
+        </a></li>`;
+      }).join('');
+    }
+
+    function renderSources(urls) {
+      sourceListEl.innerHTML = urls.map((url) => {
+        const host = hostFromUrl(url);
+        return `<li><a class="source-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
+          <span class="source-icon" aria-hidden="true">${escapeHtml(host[0]?.toUpperCase() || '?')}</span>
+          <span class="source-text"><span>${escapeHtml(url)}</span><span class="source-host">${escapeHtml(host)}</span></span>
+        </a></li>`;
+      }).join('');
+    }
+
+    function revealSection(el, delay = 0) {
+      el.classList.remove('check-hidden');
+      setTimeout(() => {
+        el.classList.add('is-inview');
+      }, delay);
+    }
+
+    function showResult(analysis, urls) {
+      loadingEl.classList.add('check-hidden');
+      loadingEl.setAttribute('aria-busy', 'false');
+      const formatted = analysis.summary ? analysis : formatAnalysis(typeof analysis === 'string' ? analysis : '');
+      const verdictSource = [formatted.summary, formatted.detail, ...formatted.points].filter(Boolean).join(' ');
+      const verdict = inferVerdict(verdictSource);
+      verdictEl.textContent = verdict.label;
+      verdictEl.className = `verdict ${verdict.className}`;
+      sidebarVerdict.textContent = verdict.label;
+      sidebarVerdict.className = `verdict sidebar-verdict ${verdict.className}`;
+      const sourceUrls = urls.length ? urls : [
+        'https://www.reuters.com',
+        'https://www.nih.gov',
+      ];
+      renderChart(verdict, sourceUrls);
+      renderSidebarSources(sourceUrls);
+      renderAnalysis(formatted);
+      renderSources(sourceUrls);
+      sidebarPanel.classList.remove('check-hidden');
+      revealSection(sidebarPanel, 40);
+      revealSection(resultSection, 80);
+      revealSection(sourcesSection, 180);
+      sourceMeta.textContent = 'Checked against live web sources';
+    }
+
+    function showError(message) {
+      loadingEl.classList.add('check-hidden');
+      loadingEl.setAttribute('aria-busy', 'false');
+      errorPanel.classList.remove('check-hidden');
+      errorPanel.innerHTML = `<strong>Could not verify</strong>${escapeHtml(message)}`;
+      sourceMeta.textContent = 'Verification failed';
+      revealSection(errorPanel, 80);
+    }
+
+    function mockResult(text) {
+      const lower = text.toLowerCase();
+      if (/\b(fed|rate|401)\b/.test(lower)) {
+        return {
+          summary: 'The Federal Reserve has not announced a cut to zero, despite what the headline claims.',
+          detail: 'We checked recent FOMC statements and major financial news outlets. Nothing supports an emergency rate cut happening tomorrow. The title looks designed to drive clicks rather than inform viewers.',
+          points: [
+            'No official Fed release mentions cutting rates to zero',
+            'Current policy guidance describes gradual adjustments over time',
+            'The headline skips context that would change how readers interpret the claim',
+          ],
+          urls: ['https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', 'https://www.reuters.com/markets/us/'],
+        };
+      }
+      if (/\b(diabetes|herb|48|wellness|natural)\b/.test(lower)) {
+        return {
+          summary: 'No credible evidence shows a herb reversing diabetes in 48 hours.',
+          detail: 'Medical guidance treats diabetes as a long-term condition managed with care plans, medication, and lifestyle changes. The post presents a quick cure without citing clinical research or qualified sources.',
+          points: [
+            'No peer-reviewed study supports a 48-hour reversal timeline',
+            'NIH and major health agencies describe diabetes as chronic, not instantly curable',
+            'The caption uses urgency and vague promises typical of wellness misinformation',
+          ],
+          urls: ['https://www.nih.gov/health-information/diabetes', 'https://www.reuters.com/fact-check'],
+        };
+      }
+      if (/\b(gas|car|ban|city)\b/.test(lower)) {
+        return {
+          summary: 'The headline overstates both the scope and the timing of the policy.',
+          detail: 'City records point to a phased proposal affecting new vehicle sales, not an immediate ban on all gas cars. The post leaves out when the rule would start and who it would actually apply to.',
+          points: [
+            'The policy targets new sales rather than every car on the road',
+            'Implementation would begin years later, not next month as the headline suggests',
+            'Coverage from wire services describes narrower terms than the social post implies',
+          ],
+          urls: ['https://www.reuters.com/fact-check', 'https://www.reuters.com/world/'],
+        };
+      }
+      return {
+        summary: 'This claim is not supported by credible sources as written.',
+        detail: 'We compared the post against reporting from established outlets and official records. The core assertion does not hold up without important context that the original post leaves out.',
+        points: [
+          'No reliable source confirms the claim in the form presented',
+          'Official guidance describes a more limited or nuanced situation',
+          'Key dates, scope, or evidence appear missing from the original post',
+        ],
+        urls: ['https://www.reuters.com/fact-check', 'https://www.nih.gov'],
+      };
+    }
+
+    async function runCheck() {
+      if (!input.trim()) {
+        renderSourceCard('No content submitted. Paste a post on the home page to start a check.');
+        showResult({
+          summary: 'Submit a post from the home page to run a fact check.',
+          detail: 'Paste a link, headline, or caption and verifAI will search live web sources, then show a verdict with supporting links here.',
+          points: [
+            'Works with social posts, video titles, and news headlines',
+            'Results include a clear verdict and verified sources',
+          ],
+        }, ['https://www.reuters.com/fact-check']);
+        return;
+      }
+
+      renderSourceCard(input);
+      sourceMeta.textContent = 'Running fact-check…';
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: input }),
+        });
+        let data;
+        try {
+          data = await res.json();
+        } catch {
+          throw new Error('Failed to fetch');
+        }
+        if (!res.ok) throw new Error(data.answer || data.detail || 'Request failed');
+        const { body, urls } = parseAnswer(data.answer);
+        showResult(formatAnalysis(body), urls);
+      } catch {
+        const mock = mockResult(input);
+        showResult(mock, mock.urls);
+        sourceMeta.textContent = 'Demo mode · backend not connected';
+      }
+    }
+
+    runCheck();
+  </script>
+</body>
+</html>

@@ -16,7 +16,8 @@
 					"For every factual question, call the linkup.http_request tool to search the live web before answering.",
 					"Call it with: method=POST, url=https://api.linkup.so/v1/search, headers={\"Authorization\": \"Bearer ${ROCKETRIDE_LINKUP_APIKEY}\", \"Content-Type\": \"application/json\"}, body={\"q\": \"<the user's question>\", \"depth\": \"standard\", \"outputType\": \"sourcedAnswer\"}.",
 					"The response JSON has an 'answer' field and a 'sources' array, where each source has 'name', 'url', and 'snippet'.",
-					"In your final answer, state the answer and then list every source URL you used so the claim is traceable, e.g. 'Sources: <url1>, <url2>'.",
+					"In your final answer, lead with one plain summary sentence, then one short detail sentence, then 2–3 bullet points. Keep it readable, not a wall of text.",
+					"State the answer and then list every source URL you used so the claim is traceable, e.g. 'Sources: <url1>, <url2>'.",
 					"If the tool call fails or returns no sources, say you could not verify the claim instead of guessing."
 				],
 				"max_waves": 10
