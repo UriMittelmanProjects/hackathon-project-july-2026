@@ -142,6 +142,7 @@ NO_CLAIMS_RESULT = {
 
 VERDICTS = {"well-supported", "disputed", "false", "mixed", "unverified"}
 LINKUP_URL = "https://api.linkup.so/v1/search"
+CLAIM_LIMITS = {"youtube": 6, "x": 6, "instagram": 3, "tiktok": 3}
 THUMBNAIL_KEYS = {
     "instagram": ("thumbnailUrl",),
     "tiktok": ("thumbnail", "thumbnailUrl", "cover", "coverUrl"),
@@ -177,9 +178,9 @@ def concise_text(value: str, max_words: int) -> str:
     return clipped.rstrip(",;:—-") + "…"
 
 
-def concise_evidence(items):
+def concise_evidence(items, claim_limit: int):
     result = []
-    for item in items[:2]:
+    for item in items[:claim_limit]:
         if not isinstance(item, dict):
             result.append(item)
             continue
@@ -187,21 +188,22 @@ def concise_evidence(items):
         if isinstance(item.get("summary"), str):
             item["summary"] = concise_text(item["summary"], 30)
         if isinstance(item.get("sources"), list):
-            item["sources"] = item["sources"][:4]
+            item["sources"] = item["sources"][:3]
         result.append(item)
     return result
 
 
 def serialize_evaluation(record) -> dict:
+    claim_limit = CLAIM_LIMITS.get(record.platform, 3)
     return {
         "postUrl": record.postUrl,
         "platform": record.platform,
         "content": record.content,
         "hasClaims": record.hasClaims,
         "noContentReason": record.noContentReason,
-        "claims": [concise_text(claim, 20) for claim in record.claims[:2]],
-        "evidenceFor": concise_evidence(record.evidenceFor),
-        "evidenceAgainst": concise_evidence(record.evidenceAgainst),
+        "claims": [concise_text(claim, 20) for claim in record.claims[:claim_limit]],
+        "evidenceFor": concise_evidence(record.evidenceFor, claim_limit),
+        "evidenceAgainst": concise_evidence(record.evidenceAgainst, claim_limit),
         "verdict": record.verdict,
         "decisionSummary": concise_text(record.decisionSummary, 35),
         "thumbnailUrl": thumbnail_url(record.platform, record.rawScraperOutput),
@@ -238,9 +240,9 @@ async def ask_rocketride_json(prompt: str, stage: str, max_attempts: int = 3) ->
     raise AgentJSONError(stage, raw)
 
 
-async def extract_claims(content: str) -> list[str]:
+async def extract_claims(content: str, max_claims: int) -> list[str]:
     result = await ask_rocketride_json(
-        "Extract at most the 2 most consequential, distinct, checkable factual claims from "
+        f"Extract at most the {max_claims} most consequential, distinct, checkable factual claims from "
         "the social media content below. Return fewer when fewer critical claims exist. "
         "Write each claim plainly in no more than 20 words. "
         "Prefer claims central to the post's main message over background details or "
@@ -254,7 +256,7 @@ async def extract_claims(content: str) -> list[str]:
     claims = result.get("claims")
     if not isinstance(claims, list) or any(not isinstance(claim, str) for claim in claims):
         raise RuntimeError("The claim extraction response had an invalid shape.")
-    return [claim.strip() for claim in claims if claim.strip()][:2]
+    return [claim.strip() for claim in claims if claim.strip()][:max_claims]
 
 
 async def search_linkup(claim: str, direction: str) -> dict:
@@ -279,7 +281,7 @@ async def search_linkup(claim: str, direction: str) -> dict:
         {"url": source["url"], "name": source.get("name") or source["url"]}
         for source in data.get("sources", [])
         if isinstance(source, dict) and source.get("url")
-    ]
+    ][:3]
     return {
         "claim": claim,
         "summary": data.get("answer") or "The search returned no useful evidence.",
@@ -305,10 +307,10 @@ async def synthesize_verdict(claims: list[str], evidence_for: list[dict], eviden
     return result
 
 
-async def run_factcheck(content: str, job: dict | None = None) -> dict:
+async def run_factcheck(content: str, platform: str, job: dict | None = None) -> dict:
     if job is not None:
         job["phase"] = "extracting_claims"
-    claims = await extract_claims(content)
+    claims = await extract_claims(content, CLAIM_LIMITS.get(platform, 3))
     if not claims:
         return NO_CLAIMS_RESULT
 
@@ -344,7 +346,11 @@ async def process_factcheck(job_id: str, url: str, normalized_url: str) -> None:
     try:
         job.update(phase="scraping", detail=None)
         scraped = await scraper.scrape(url)
-        result = NO_CONTENT_RESULT if scraped.content is None else await run_factcheck(scraped.content, job)
+        result = (
+            NO_CONTENT_RESULT
+            if scraped.content is None
+            else await run_factcheck(scraped.content, scraped.platform, job)
+        )
 
         job.update(phase="saving", detail=None)
         saved = await db.postevaluation.create(

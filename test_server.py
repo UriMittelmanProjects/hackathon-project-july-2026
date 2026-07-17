@@ -15,9 +15,20 @@ class FactCheckTests(unittest.IsolatedAsyncioTestCase):
             "The claim about Washington, D.C. is disputed.",
         )
         evidence = [{"summary": "word " * 50, "sources": list(range(10))}] * 3
-        concise = server.concise_evidence(evidence)
-        self.assertEqual(len(concise), 2)
-        self.assertEqual(len(concise[0]["sources"]), 4)
+        concise = server.concise_evidence(evidence, 3)
+        self.assertEqual(len(concise), 3)
+        self.assertEqual(len(concise[0]["sources"]), 3)
+
+    def test_claim_limits_vary_by_platform(self):
+        self.assertEqual(server.CLAIM_LIMITS["youtube"], 6)
+        self.assertEqual(server.CLAIM_LIMITS["x"], 6)
+        self.assertEqual(server.CLAIM_LIMITS["instagram"], 3)
+        self.assertEqual(server.CLAIM_LIMITS["tiktok"], 3)
+
+    async def test_youtube_routes_six_claim_limit_to_extraction(self):
+        with patch("server.extract_claims", AsyncMock(return_value=[])) as extract:
+            await server.run_factcheck("content", "youtube")
+        extract.assert_awaited_once_with("content", 6)
 
     def test_thumbnail_url_uses_platform_field_and_rejects_unsafe_urls(self):
         self.assertEqual(
@@ -43,8 +54,8 @@ class FactCheckTests(unittest.IsolatedAsyncioTestCase):
             {"answers": ['{"claims": ["A claim", "B claim", "C claim"]}']},
         ]
         with patch("server.chat_with_retry", AsyncMock(side_effect=responses)) as chat:
-            result = await server.extract_claims("content")
-        self.assertEqual(result, ["A claim", "B claim"])
+            result = await server.extract_claims("content", 3)
+        self.assertEqual(result, ["A claim", "B claim", "C claim"])
         self.assertEqual(chat.await_count, 3)
 
         with patch(
@@ -67,7 +78,7 @@ class FactCheckTests(unittest.IsolatedAsyncioTestCase):
                 AsyncMock(return_value={"verdict": "mixed", "decision_summary": "summary"}),
             ),
         ):
-            result = await server.run_factcheck("content")
+            result = await server.run_factcheck("content", "instagram")
 
         self.assertEqual(linkup.await_count, 4)
         self.assertEqual(

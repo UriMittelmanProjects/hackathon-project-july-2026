@@ -183,7 +183,9 @@
   .preview-play { color: var(--accent); }
   .meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
   .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-  .badge.platform { background: var(--accent-dim); color: var(--accent); text-transform: capitalize; }
+  .badge.platform { width: 34px; height: 28px; display: inline-grid; place-items: center; padding: 4px; background: var(--surface-raised); color: var(--ink); }
+  .platform-logo { width: 20px; height: 20px; display: block; }
+  .platform-mark .platform-logo { width: 42px; height: 42px; filter: drop-shadow(0 2px 10px rgb(0 0 0 / 0.35)); }
   .badge.cached { background: var(--surface-raised); color: var(--ink-muted); }
 
   .verdict { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
@@ -207,12 +209,21 @@
   .evidence-item { padding: 12px 0; border-top: 1px solid var(--border-subtle); font-size: 13px; }
   .evidence-item .claim { margin-bottom: 5px; color: var(--ink); font-weight: 600; }
   .evidence-item .summary { margin-bottom: 8px; color: var(--ink-muted); line-height: 1.55; }
-  .evidence-item .sources { display: flex; flex-direction: column; gap: 6px; }
-  .evidence-item .sources a { display: block; overflow: hidden; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg); color: var(--accent); font-size: 12px; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
-  .evidence-item .sources a:hover { border-color: var(--accent-strong); background: var(--accent-dim); }
+  .sources { margin-top: 8px; }
+  .sources > summary { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg); color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; }
+  .sources > summary::-webkit-details-marker, .collapsible-card > summary::-webkit-details-marker { display: none; }
+  .sources > summary::after { content: '+'; font-size: 16px; line-height: 1; }
+  .sources[open] > summary::after { content: '−'; }
+  .source-links { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+  .source-links a { display: block; overflow: hidden; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg); color: var(--accent); font-size: 12px; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+  .source-links a:hover { border-color: var(--accent-strong); background: var(--accent-dim); }
   .empty-note { color: var(--ink-faint); font-size: 13px; font-style: italic; }
 
   h2.section-title { margin: 0 0 12px; color: var(--ink-faint); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .collapsible-card > summary { display: flex; align-items: center; justify-content: space-between; margin: 0; color: var(--ink-faint); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; list-style: none; }
+  .collapsible-card > summary::after { content: '+'; color: var(--accent); font-size: 18px; line-height: 1; }
+  .collapsible-card[open] > summary { margin-bottom: 12px; }
+  .collapsible-card[open] > summary::after { content: '−'; }
 
   @media (max-width: 640px) {
     .header { padding: 14px 16px; }
@@ -261,6 +272,11 @@
       <div id="error" role="alert"></div>
 
       <div id="result">
+    <div class="card" id="claims-card">
+      <h2 class="section-title">Claims checked</h2>
+      <ul class="claims-list" id="claims-list"></ul>
+    </div>
+
     <div class="card result-overview">
       <a id="post-link" class="post-preview" target="_blank" rel="noopener noreferrer">
         <img id="post-thumbnail" class="post-thumbnail" alt="" hidden />
@@ -280,16 +296,6 @@
       </div>
     </div>
 
-    <div class="card" id="content-card">
-      <h2 class="section-title">Extracted content</h2>
-      <div class="content-box" id="content-box"></div>
-    </div>
-
-    <div class="card" id="claims-card">
-      <h2 class="section-title">Claims checked</h2>
-      <ul class="claims-list" id="claims-list"></ul>
-    </div>
-
     <div class="card">
       <div class="evidence-columns">
         <div class="evidence-col for">
@@ -302,6 +308,11 @@
         </div>
       </div>
     </div>
+
+    <details class="card collapsible-card" id="content-card">
+      <summary>Extracted content</summary>
+      <div class="content-box" id="content-box"></div>
+    </details>
       </div>
     </main>
   </div>
@@ -313,6 +324,12 @@
     const statusEl = document.getElementById('status');
     const errorEl = document.getElementById('error');
     const resultEl = document.getElementById('result');
+    const platformLogos = {
+      instagram: '<svg class="platform-logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="#e1306c" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="#e1306c" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="#f77737"/></svg>',
+      tiktok: '<svg class="platform-logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3v11.5a4.5 4.5 0 1 1-3-4.24v3.15a1.75 1.75 0 1 0 .25 1.09V3h2.75c.45 2.1 1.8 3.35 4 3.75v3c-1.6-.15-2.95-.7-4-1.6" fill="none" stroke="#25f4ee" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      x: '<svg class="platform-logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4l14 16M19 4L5 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+      youtube: '<svg class="platform-logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="#ff0033"/><path d="M10 9l6 3-6 3z" fill="white"/></svg>',
+    };
     const phaseLabels = {
       checking_cache: 'Checking for a previous analysis...',
       scraping: 'Scraping the post...',
@@ -348,11 +365,23 @@
       return job.result;
     }
 
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    }
+
+    function safeUrl(value) {
+      try {
+        const url = new URL(value);
+        return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+      } catch { return ''; }
+    }
+
     function renderSources(sources) {
-      if (!sources || sources.length === 0) return '';
-      return `<div class="sources">${sources.map(s =>
-        `<a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.name || s.url}</a>`
-      ).join('')}</div>`;
+      const usable = (sources || []).map(source => ({ ...source, url: safeUrl(source.url) })).filter(source => source.url).slice(0, 3);
+      if (usable.length === 0) return '';
+      return `<details class="sources"><summary>${usable.length} source${usable.length === 1 ? '' : 's'}</summary><div class="source-links">${usable.map(source =>
+        `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.name || source.url)}</a>`
+      ).join('')}</div></details>`;
     }
 
     function renderEvidenceList(items) {
@@ -361,25 +390,29 @@
       }
       return items.map(item => `
         <div class="evidence-item">
-          <div class="claim">${item.claim || ''}</div>
-          <div class="summary">${item.summary || ''}</div>
+          <div class="claim">${escapeHtml(item.claim)}</div>
+          <div class="summary">${escapeHtml(item.summary)}</div>
           ${renderSources(item.sources)}
         </div>
       `).join('');
     }
 
     function renderResult(data) {
-      document.getElementById('platform-badge').textContent = data.platform;
+      const platformBadge = document.getElementById('platform-badge');
       document.getElementById('cached-badge').style.display = data.cached ? 'inline-block' : 'none';
 
       const platform = ['instagram', 'tiktok', 'x', 'youtube'].includes(data.platform) ? data.platform : 'default';
+      platformBadge.innerHTML = platformLogos[platform] || '<span aria-hidden="true">V</span>';
+      platformBadge.dataset.platform = platform;
+      platformBadge.setAttribute('aria-label', data.platform || 'Platform');
+      platformBadge.title = data.platform || 'Platform';
       const postLink = document.getElementById('post-link');
       const thumbnail = document.getElementById('post-thumbnail');
       const fallback = document.getElementById('post-fallback');
       postLink.href = data.postUrl;
       postLink.dataset.platform = platform;
       postLink.setAttribute('aria-label', `Open original ${data.platform || ''} post`);
-      document.getElementById('platform-mark').textContent = { instagram: '◎', tiktok: '♪', x: '𝕏', youtube: '▶' }[platform] || 'V';
+      document.getElementById('platform-mark').innerHTML = platformLogos[platform] || '<span aria-hidden="true">V</span>';
       thumbnail.hidden = true;
       fallback.hidden = false;
       thumbnail.onload = () => { thumbnail.hidden = false; fallback.hidden = true; };
@@ -400,6 +433,7 @@
       const contentCard = document.getElementById('content-card');
       if (data.content) {
         contentCard.style.display = 'block';
+        contentCard.open = false;
         document.getElementById('content-box').textContent = data.content;
       } else {
         contentCard.style.display = 'none';
@@ -409,7 +443,7 @@
       const claims = data.claims || [];
       if (claims.length > 0) {
         claimsCard.style.display = 'block';
-        document.getElementById('claims-list').innerHTML = claims.map(c => `<li>${c}</li>`).join('');
+        document.getElementById('claims-list').innerHTML = claims.map(claim => `<li>${escapeHtml(claim)}</li>`).join('');
       } else {
         claimsCard.style.display = 'none';
       }
