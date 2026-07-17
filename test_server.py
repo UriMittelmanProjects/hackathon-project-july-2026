@@ -64,5 +64,27 @@ class FactCheckTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(server.state["jobs"][job_id]["raw"]), 1000)
 
 
+class TikTokScraperTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tiktok_actor_payload_and_vtt_cleanup(self):
+        item = {
+            "id": "123",
+            "success": True,
+            "transcript": (
+                "WEBVTT\n\n00:00:00.380 --> 00:00:03.600\nFirst claim.\n\n"
+                "00:00:03.700 --> 00:00:06.760\nSecond claim."
+            ),
+        }
+        with patch("scraper._run_apify_actor", AsyncMock(return_value=item)) as actor:
+            result = await server.scraper.scrape("https://www.tiktok.com/@user/video/123")
+
+        actor.assert_awaited_once_with(
+            "scrape-creators~best-tiktok-transcripts-scraper",
+            {"videos": ["https://www.tiktok.com/@user/video/123"]},
+        )
+        self.assertEqual(result.platform, "tiktok")
+        self.assertEqual(result.content, "Spoken transcript:\nFirst claim.\n\nSecond claim.")
+        self.assertIsNone(result.no_content_reason)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -15,6 +15,7 @@ APIFY_BASE_URL = "https://api.apify.com/v2"
 # Using crawlerbros/instagram-transcript-scraper instead since it works on the
 # free tier - switch back to sian.agency once billing is set up for it.
 INSTAGRAM_ACTOR = "crawlerbros~instagram-transcript-scraper"
+TIKTOK_ACTOR = "scrape-creators~best-tiktok-transcripts-scraper"
 
 
 class ScrapeError(Exception):
@@ -59,32 +60,38 @@ async def scrape(url: str) -> ScrapeResult:
 
     if platform == "instagram":
         return await _scrape_instagram(url)
+    if platform == "tiktok":
+        return await _scrape_tiktok(url)
 
     raise UnsupportedPlatformError(
-        f"The scraper for {platform} is not configured yet. Currently only "
-        f"Instagram posts are supported."
+        f"The scraper for {platform} is not configured yet. Currently Instagram "
+        f"and TikTok posts are supported."
     )
 
 
-async def _scrape_instagram(url: str) -> ScrapeResult:
+async def _run_apify_actor(actor: str, actor_input: dict) -> dict:
     async with httpx.AsyncClient(timeout=180) as client:
         resp = await client.post(
-            f"{APIFY_BASE_URL}/acts/{INSTAGRAM_ACTOR}/run-sync-get-dataset-items",
+            f"{APIFY_BASE_URL}/acts/{actor}/run-sync-get-dataset-items",
             params={"token": APIFY_API_TOKEN},
-            json={"videoUrls": [url]},
+            json=actor_input,
         )
 
     if resp.status_code != 201:
         raise ScrapeError(f"Apify actor call failed with status {resp.status_code}: {resp.text[:500]}")
 
     items = resp.json()
-    if not items:
+    if not isinstance(items, list) or not items or not isinstance(items[0], dict):
         raise ScrapeError("Apify actor returned no results for this URL.")
 
     item = items[0]
+    if item.get("status") == "error" or item.get("errMsg") or item.get("success") is False:
+        raise ScrapeError(item.get("errMsg") or item.get("error") or "Unknown scraper error.")
+    return item
 
-    if item.get("status") == "error" or item.get("errMsg"):
-        raise ScrapeError(item.get("errMsg", "Unknown scraper error."))
+
+async def _scrape_instagram(url: str) -> ScrapeResult:
+    item = await _run_apify_actor(INSTAGRAM_ACTOR, {"videoUrls": [url]})
 
     transcript = (item.get("fullText") or "").strip()
     description = (item.get("postDescription") or "").strip()
@@ -108,5 +115,20 @@ async def _scrape_instagram(url: str) -> ScrapeResult:
         platform="instagram",
         content=content,
         no_content_reason=None,
+        raw=item,
+    )
+
+
+async def _scrape_tiktok(url: str) -> ScrapeResult:
+    item = await _run_apify_actor(TIKTOK_ACTOR, {"videos": [url]})
+    transcript = (item.get("transcript") or "").strip()
+    transcript = re.sub(r"(?m)^(?:WEBVTT|\d\d:\d\d:\d\d\.\d+ --> .*)\s*$", "", transcript)
+    transcript = re.sub(r"\n{3,}", "\n\n", transcript).strip()
+    content = f"Spoken transcript:\n{transcript}" if transcript else None
+
+    return ScrapeResult(
+        platform="tiktok",
+        content=content,
+        no_content_reason=None if content else "no_content",
         raw=item,
     )
