@@ -1,0 +1,80 @@
+{
+	"components": [
+		{
+			"id": "chat_1",
+			"provider": "chat",
+			"config": { "hideForm": true, "mode": "Source", "parameters": {}, "type": "chat" },
+			"ui": { "position": { "x": 20, "y": 200 }, "measured": { "width": 150, "height": 66 }, "nodeType": "default", "formDataValid": true }
+		},
+		{
+			"id": "agent_rocketride_1",
+			"provider": "agent_rocketride",
+			"config": {
+				"agent_description": "Fact-checks a social media post's transcript/text by researching supporting and contradicting evidence on the live web via Linkup, then renders a verdict.",
+				"instructions": [
+					"You are a disinformation fact-checking analyst. You will be given the transcribed spoken content or text body of a social media post.",
+					"Step 1: Decide whether the text contains any checkable, factual claims (statements about verifiable facts - events, numbers, quotes, who-did-what). Ignore pure opinion, greetings, or content with no factual assertion.",
+					"Step 2: If there are NO checkable claims (empty text, or only opinion/subjective content), respond immediately with the JSON shape in Step 5, setting has_claims=false, empty claims/evidence_for/evidence_against arrays, verdict=\"no_claims\", and a decision_summary explaining that no factual claims were found.",
+					"Step 3: If there ARE checkable claims, extract up to 5 of the most significant, distinct factual claims as short strings.",
+					"Step 4: For EACH claim, call the linkup.http_request tool at least twice: one search phrased to find evidence SUPPORTING the claim, and one search phrased to find evidence CONTRADICTING or disputing the claim. Call it with: method=POST, url=https://api.linkup.so/v1/search, headers={\"Authorization\": \"Bearer ${ROCKETRIDE_LINKUP_APIKEY}\", \"Content-Type\": \"application/json\"}, body={\"q\": \"<search query>\", \"depth\": \"standard\", \"outputType\": \"sourcedAnswer\"}. The response has an 'answer' field and a 'sources' array (each with 'name', 'url', 'snippet').",
+					"Step 5: Weigh the quality, quantity, and credibility of the supporting versus contradicting evidence for all claims together, then respond with ONLY a single valid JSON object - no markdown code fences, no prose before or after - matching exactly this shape: {\"has_claims\": boolean, \"claims\": [string], \"evidence_for\": [{\"claim\": string, \"summary\": string, \"sources\": [{\"url\": string, \"name\": string}]}], \"evidence_against\": [{\"claim\": string, \"summary\": string, \"sources\": [{\"url\": string, \"name\": string}]}], \"verdict\": string, \"decision_summary\": string}.",
+					"The verdict field must be one of: \"well-supported\", \"disputed\", \"false\", \"mixed\", \"unverified\", or \"no_claims\".",
+					"Every entry in evidence_for and evidence_against must include real source URLs actually returned by the linkup.http_request tool - never invent a URL.",
+					"If a Linkup search returns no useful sources for a claim, say so in that claim's summary rather than fabricating evidence."
+				],
+				"max_waves": 20
+			},
+			"ui": { "position": { "x": 240, "y": 200 }, "measured": { "width": 150, "height": 86 }, "nodeType": "default", "formDataValid": true },
+			"input": [{ "lane": "questions", "from": "chat_1" }]
+		},
+		{
+			"id": "response_answers_1",
+			"provider": "response_answers",
+			"config": { "laneName": "answers" },
+			"ui": { "position": { "x": 460, "y": 200 }, "measured": { "width": 150, "height": 66 }, "nodeType": "default", "formDataValid": true },
+			"input": [{ "lane": "answers", "from": "agent_rocketride_1" }]
+		},
+		{
+			"id": "llm_openai_1",
+			"provider": "llm_openai",
+			"config": {
+				"profile": "openai-4o",
+				"openai-4o": { "apikey": "${ROCKETRIDE_OPENAI_KEY}" },
+				"parameters": {}
+			},
+			"ui": { "position": { "x": 130, "y": 360 }, "measured": { "width": 150, "height": 66 }, "nodeType": "default", "formDataValid": true },
+			"control": [{ "classType": "llm", "from": "agent_rocketride_1" }]
+		},
+		{
+			"id": "memory_internal_1",
+			"provider": "memory_internal",
+			"config": { "type": "memory_internal" },
+			"ui": { "position": { "x": 350, "y": 360 }, "measured": { "width": 150, "height": 66 }, "nodeType": "default", "formDataValid": true },
+			"control": [{ "classType": "memory", "from": "agent_rocketride_1" }]
+		},
+		{
+			"id": "tool_http_request_1",
+			"provider": "tool_http_request",
+			"config": {
+				"type": "tool_http_request",
+				"allowGET": false,
+				"allowPOST": true,
+				"allowPUT": false,
+				"allowPATCH": false,
+				"allowDELETE": false,
+				"allowHEAD": false,
+				"allowOPTIONS": false,
+				"urlWhitelist": [{ "whitelistPattern": "^https://api\\.linkup\\.so/.*" }],
+				"rateLimitPerSecond": 10,
+				"rateLimitPerMinute": 100,
+				"maxConcurrentRequests": 5
+			},
+			"ui": { "position": { "x": 570, "y": 360 }, "measured": { "width": 150, "height": 40 }, "nodeType": "default", "formDataValid": true },
+			"control": [{ "classType": "tool", "from": "agent_rocketride_1" }]
+		}
+	],
+	"source": "chat_1",
+	"project_id": "3ecd07da-f93a-48b2-a279-e860bdfe3ddf",
+	"viewport": { "x": 0, "y": 0, "zoom": 1 },
+	"version": 1
+}

@@ -2,95 +2,223 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>RocketRide + Linkup Chat</title>
+<title>Disinformation Fact-Checker</title>
 <style>
   :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 720px;
+    max-width: 780px;
     margin: 0 auto;
-    padding: 24px 16px 100px;
+    padding: 32px 16px 80px;
     background: #0f1115;
     color: #e6e6e6;
   }
-  h1 { font-size: 18px; font-weight: 600; color: #9aa4b2; margin-bottom: 4px; }
-  p.sub { color: #6b7280; font-size: 13px; margin-top: 0; margin-bottom: 24px; }
-  #messages { display: flex; flex-direction: column; gap: 12px; }
-  .msg { padding: 12px 14px; border-radius: 12px; line-height: 1.45; font-size: 14px; white-space: pre-wrap; }
-  .msg.user { align-self: flex-end; background: #2563eb; color: white; max-width: 80%; }
-  .msg.agent { align-self: flex-start; background: #1c1f26; border: 1px solid #2a2e37; max-width: 85%; }
-  .msg.pending { opacity: 0.6; font-style: italic; }
-  form {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    display: flex; gap: 8px;
-    padding: 16px; background: #0f1115; border-top: 1px solid #2a2e37;
-  }
-  input {
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  p.sub { color: #6b7280; font-size: 13px; margin-top: 0; margin-bottom: 28px; }
+
+  form { display: flex; gap: 8px; margin-bottom: 8px; }
+  input[type="text"] {
     flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid #2a2e37;
-    background: #1c1f26; color: #e6e6e6; font-size: 14px; max-width: 720px; margin: 0 auto;
+    background: #1c1f26; color: #e6e6e6; font-size: 14px;
   }
-  form { justify-content: center; }
-  input:focus { outline: 2px solid #2563eb; }
+  input[type="text"]:focus { outline: 2px solid #2563eb; }
   button {
-    padding: 12px 18px; border-radius: 10px; border: none;
-    background: #2563eb; color: white; font-size: 14px; cursor: pointer;
+    padding: 12px 20px; border-radius: 10px; border: none;
+    background: #2563eb; color: white; font-size: 14px; cursor: pointer; white-space: nowrap;
   }
   button:disabled { opacity: 0.5; cursor: default; }
+  .hint { color: #6b7280; font-size: 12px; margin-bottom: 24px; }
+
+  #status { display: none; padding: 14px 16px; border-radius: 10px; background: #1c1f26; border: 1px solid #2a2e37; font-size: 13px; color: #9aa4b2; margin-bottom: 20px; }
+  #status.visible { display: block; }
+  #error { display: none; padding: 14px 16px; border-radius: 10px; background: #2a1414; border: 1px solid #5c2323; color: #f3a3a3; font-size: 13px; margin-bottom: 20px; }
+  #error.visible { display: block; }
+
+  #result { display: none; }
+  #result.visible { display: block; }
+
+  .card { background: #1c1f26; border: 1px solid #2a2e37; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge.platform { background: #26304a; color: #8fb2ff; text-transform: capitalize; }
+  .badge.cached { background: #2a2e37; color: #9aa4b2; }
+
+  .verdict { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .verdict.well-supported { background: #16331f; color: #6fd88a; }
+  .verdict.true { background: #16331f; color: #6fd88a; }
+  .verdict.false { background: #3a1616; color: #f28b8b; }
+  .verdict.disputed, .verdict.mixed { background: #3a2f10; color: #f2c14b; }
+  .verdict.unverified, .verdict.no_claims { background: #2a2e37; color: #9aa4b2; }
+
+  .decision-summary { font-size: 14px; line-height: 1.55; color: #d7dae0; }
+
+  .content-box { font-size: 13px; line-height: 1.5; color: #9aa4b2; white-space: pre-wrap; max-height: 160px; overflow-y: auto; background: #14161b; border-radius: 8px; padding: 12px; }
+
+  .claims-list { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.6; }
+
+  .evidence-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .evidence-columns { grid-template-columns: 1fr; } }
+  .evidence-col h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 10px; }
+  .evidence-col.for h3 { color: #6fd88a; }
+  .evidence-col.against h3 { color: #f28b8b; }
+  .evidence-item { margin-bottom: 14px; font-size: 13px; }
+  .evidence-item .claim { font-weight: 600; color: #d7dae0; margin-bottom: 4px; }
+  .evidence-item .summary { color: #9aa4b2; margin-bottom: 6px; line-height: 1.5; }
+  .evidence-item .sources a { display: block; color: #6b93e0; font-size: 12px; text-decoration: none; word-break: break-all; margin-bottom: 2px; }
+  .evidence-item .sources a:hover { text-decoration: underline; }
+  .empty-note { color: #6b7280; font-size: 13px; font-style: italic; }
+
+  h2.section-title { font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: #9aa4b2; margin: 0 0 12px; }
 </style>
 </head>
 <body>
-  <h1>RocketRide + Linkup</h1>
-  <p class="sub">Grounded chat agent — every factual answer is cited to a live source URL.</p>
-  <div id="messages"></div>
+  <h1>Disinformation Fact-Checker</h1>
+  <p class="sub">Paste a social media post URL. We scrape the transcript/text, then use RocketRide + Linkup to research both sides and render a verdict.</p>
 
-  <form id="chat-form">
-    <input id="input" type="text" placeholder="Ask something..." autocomplete="off" autofocus />
-    <button id="send" type="submit">Send</button>
+  <form id="factcheck-form">
+    <input id="url-input" type="text" placeholder="https://www.instagram.com/reel/..." autocomplete="off" autofocus />
+    <button id="submit-btn" type="submit">Fact-Check</button>
   </form>
+  <p class="hint">Currently supported: Instagram. Facebook / TikTok / X / YouTube scrapers are not wired up yet.</p>
+
+  <div id="status"></div>
+  <div id="error"></div>
+
+  <div id="result">
+    <div class="card">
+      <div class="meta-row">
+        <span id="platform-badge" class="badge platform"></span>
+        <span id="cached-badge" class="badge cached" style="display:none">Previously analyzed</span>
+        <span id="verdict-badge" class="verdict"></span>
+      </div>
+      <div class="decision-summary" id="decision-summary"></div>
+    </div>
+
+    <div class="card" id="content-card">
+      <h2 class="section-title">Extracted content</h2>
+      <div class="content-box" id="content-box"></div>
+    </div>
+
+    <div class="card" id="claims-card">
+      <h2 class="section-title">Claims checked</h2>
+      <ul class="claims-list" id="claims-list"></ul>
+    </div>
+
+    <div class="card">
+      <div class="evidence-columns">
+        <div class="evidence-col for">
+          <h3>Supporting evidence</h3>
+          <div id="evidence-for"></div>
+        </div>
+        <div class="evidence-col against">
+          <h3>Contradicting evidence</h3>
+          <div id="evidence-against"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
-    const messagesEl = document.getElementById('messages');
-    const form = document.getElementById('chat-form');
-    const input = document.getElementById('input');
-    const sendBtn = document.getElementById('send');
+    const form = document.getElementById('factcheck-form');
+    const input = document.getElementById('url-input');
+    const submitBtn = document.getElementById('submit-btn');
+    const statusEl = document.getElementById('status');
+    const errorEl = document.getElementById('error');
+    const resultEl = document.getElementById('result');
 
-    function addMessage(text, role) {
-      const div = document.createElement('div');
-      div.className = `msg ${role}`;
-      div.textContent = text;
-      messagesEl.appendChild(div);
-      window.scrollTo(0, document.body.scrollHeight);
-      return div;
+    function setStatus(text) {
+      statusEl.textContent = text;
+      statusEl.classList.toggle('visible', !!text);
+    }
+    function setError(text) {
+      errorEl.textContent = text;
+      errorEl.classList.toggle('visible', !!text);
+    }
+
+    function renderSources(sources) {
+      if (!sources || sources.length === 0) return '';
+      return `<div class="sources">${sources.map(s =>
+        `<a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.name || s.url}</a>`
+      ).join('')}</div>`;
+    }
+
+    function renderEvidenceList(items) {
+      if (!items || items.length === 0) {
+        return '<p class="empty-note">No evidence found.</p>';
+      }
+      return items.map(item => `
+        <div class="evidence-item">
+          <div class="claim">${item.claim || ''}</div>
+          <div class="summary">${item.summary || ''}</div>
+          ${renderSources(item.sources)}
+        </div>
+      `).join('');
+    }
+
+    function renderResult(data) {
+      document.getElementById('platform-badge').textContent = data.platform;
+      document.getElementById('cached-badge').style.display = data.cached ? 'inline-block' : 'none';
+
+      const verdictEl = document.getElementById('verdict-badge');
+      verdictEl.textContent = (data.verdict || 'unverified').replace(/_/g, ' ').replace(/-/g, ' ');
+      verdictEl.className = 'verdict ' + (data.verdict || 'unverified');
+
+      document.getElementById('decision-summary').textContent = data.decisionSummary || '';
+
+      const contentCard = document.getElementById('content-card');
+      if (data.content) {
+        contentCard.style.display = 'block';
+        document.getElementById('content-box').textContent = data.content;
+      } else {
+        contentCard.style.display = 'none';
+      }
+
+      const claimsCard = document.getElementById('claims-card');
+      const claims = data.claims || [];
+      if (claims.length > 0) {
+        claimsCard.style.display = 'block';
+        document.getElementById('claims-list').innerHTML = claims.map(c => `<li>${c}</li>`).join('');
+      } else {
+        claimsCard.style.display = 'none';
+      }
+
+      document.getElementById('evidence-for').innerHTML = renderEvidenceList(data.evidenceFor);
+      document.getElementById('evidence-against').innerHTML = renderEvidenceList(data.evidenceAgainst);
+
+      resultEl.classList.add('visible');
     }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const message = input.value.trim();
-      if (!message) return;
+      const url = input.value.trim();
+      if (!url) return;
 
-      addMessage(message, 'user');
-      input.value = '';
+      submitBtn.disabled = true;
       input.disabled = true;
-      sendBtn.disabled = true;
-
-      const pending = addMessage('Thinking…', 'agent pending');
+      setError('');
+      resultEl.classList.remove('visible');
+      setStatus('Scraping post and researching claims - this can take 30 seconds to a couple of minutes...');
 
       try {
-        const res = await fetch('/api/chat', {
+        const res = await fetch('/api/factcheck', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({ url }),
         });
         const data = await res.json();
-        pending.textContent = data.answer;
-        pending.classList.remove('pending');
+
+        if (!res.ok) {
+          setError(data.error || 'Something went wrong.');
+        } else {
+          renderResult(data);
+        }
       } catch (err) {
-        pending.textContent = 'Error: ' + err.message;
-        pending.classList.remove('pending');
+        setError('Request failed: ' + err.message);
       } finally {
+        setStatus('');
+        submitBtn.disabled = false;
         input.disabled = false;
-        sendBtn.disabled = false;
-        input.focus();
       }
     });
   </script>

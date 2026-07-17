@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-py"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One row per unique post URL. If a lookup finds an existing row we skip
+// scraping/RocketRide/Linkup entirely and just return it - this is the
+// "already evaluated" fast path.
+model PostEvaluation {
+  id       String @id @default(uuid())
+  postUrl  String @unique
+  platform String
+
+  // Raw content extracted from the post (transcript for video, text for
+  // text posts). Null when nothing usable was found (see noContentReason).
+  content         String?
+  hasClaims       Boolean
+  noContentReason String? // e.g. "no_transcript", "no_text_content" - null when hasClaims is true
+
+  claims          Json // string[]
+  evidenceFor     Json // [{ claim, summary, sources: [{ url, name }] }]
+  evidenceAgainst Json // same shape as evidenceFor
+
+  verdict         String // e.g. "well-supported" | "disputed" | "false" | "mixed" | "no_claims" | "unverified"
+  decisionSummary String
+
+  rawScraperOutput Json? // full scraper payload, kept for debugging/audit
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
