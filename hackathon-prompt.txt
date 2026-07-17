@@ -1,0 +1,57 @@
+HackwithSeattle 2.0 Official Problem Statement
+Theme: Building Grounded Agentic Applications with RocketRide Cloud and Linkup
+
+The next generation of AI applications can't afford to hallucinate. Agents that answer questions, make decisions, or take action need to be grounded in what's actually true on the live web right now — not frozen training data — and they need to run as real, observable production pipelines, not scripts on someone's laptop.
+
+HackwithSeattle 2.0 challenges you to combine a managed AI pipeline runtime with a production-grade web search and retrieval API to build agentic applications that reason over live, sourced, cited information from the open web.
+Core Challenge
+Design and build an innovative agentic application that utilizes:
+
+RocketRide Cloud: Hosts and runs your AI pipelines and multi-agent workflows in production, with full observability, without managing infrastructure.
+Linkup: Provides your agent real-time, sourced, and cited access to the web—search, page-fetch, and deep research—so answers are grounded in verifiable, up-to-date facts.
+Mandatory Requirements
+RocketRide Cloud Deployment: Your pipeline must be deployed to RocketRide Cloud (cloud.rocketride.ai). Local-only or Docker-only pipelines will not satisfy this requirement.
+Linkup Integration: Agents must actively call the Linkup API for live web grounding. Hardcoding results or superficial "search bar" usage is grounds for disqualification.
+Cited, Grounded Output: Any factual claim surfaced by your agent must be traceable back to a source URL.
+Deep Integration: Both technologies must be meaningfully woven into the core product experience.
+
+Suggested Problem Tracks
+Track
+Problem
+Solution Summary
+1. Live Fact-Checking
+Claims spread online faster than they can be verified.
+Linkup: Real-time source fetching. RocketRide: Verification/scoring pipeline.
+2. Market Intel
+Analysts spend hours manually tracking competitors and news.
+Linkup: Deep research across news and filings. RocketRide: Scheduled summarization.
+3. Research Assistant
+LLMs confidently cite papers and quotes that don't exist.
+Linkup: Sourced search for every claim. RocketRide: Multi-agent drafting and verification.
+4. Travel Planner
+Static guides go stale as prices, hours, and events change.
+Linkup: Live search for current availability. RocketRide: Orchestrates budgeting/itinerary agents.
+5. Sales Enrichment
+Reps waste time researching prospects before outreach.
+Linkup: Fetching current context for companies. RocketRide: Scoring and routing enriched leads.
+6. Regulatory Watch
+Compliance rules change across jurisdictions rapidly.
+Linkup: Deep research over government sources. RocketRide: Monitoring and flagging changes.
+7. Open Innovation
+Bring your own idea.
+Use Linkup for grounding and RocketRide for production-grade pipelines.
+
+
+Submission & Deliverables
+Participants must submit the following through the HackwithSeattle 2.0 submission form:
+
+Working Prototype: A live or local demonstration of the application.
+Source Code: A link to the project's repository.
+Project Description: Details on the problem solved, the RocketRide Cloud pipeline structure, and Linkup integration (including an example of cited output).
+Pitch Deck/Video: (Optional) To further explain the vision and impact of the project.
+Setup Checklist
+RocketRide Cloud: Sign up and build your pipeline locally in the VS Code extension before deploying to the cloud.
+Linkup: Create a free account at app.linkup.so, retrieve your API key, and wire it into your agent's tool calls (Search, Fetch, and/or Research).
+RSVP: Ensure you have completed the mandatory RSVP form to confirm your spot and receive $25 worth of Lovable/n8n credits.
+
+

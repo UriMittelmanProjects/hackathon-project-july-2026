@@ -1,0 +1,30 @@
+# RocketRide (regenerated locally from the connected server; may contain server-specific paths)
+.rocketride/
+
+# Secrets - never commit
+.env
+.env.*.local
+*.pem
+*.key
+*credentials*.json
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Node (in case a TS/web frontend is added later)
+node_modules/
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
