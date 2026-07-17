@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>verifAI — Live Fact Check</title>
+<title>verifAI</title>
+<link rel="icon" href="/verifai-logo.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet" />
@@ -28,10 +29,16 @@
     --radius-lg: 16px;
     --shadow: 0 1px 0 oklch(1 0 0 / 0.04) inset, 0 12px 40px oklch(0 0 0 / 0.35);
     --transition: 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    --page-gutter: clamp(16px, 3vw, 48px);
   }
 
   *, *::before, *::after { box-sizing: border-box; }
   html, body { min-height: 100%; margin: 0; }
+  html { scrollbar-gutter: stable; scrollbar-color: var(--accent-strong) var(--bg); scrollbar-width: thin; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { border: 3px solid var(--bg); border-radius: 999px; background: var(--border); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent-strong); }
   body {
     font-family: var(--font-ui);
     font-size: 16px;
@@ -50,7 +57,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    padding: 16px max(20px, calc((100vw - 960px) / 2));
+    padding: 16px var(--page-gutter);
     background: oklch(0.13 0.014 255 / 0.85);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border-subtle);
@@ -59,13 +66,9 @@
   .brand-mark {
     width: 36px;
     height: 36px;
-    display: grid;
-    place-items: center;
-    border-radius: var(--radius-sm);
-    background: var(--accent-dim);
-    color: var(--accent);
-    font: 600 24px/1 var(--font-display);
-    letter-spacing: -0.03em;
+    display: block;
+    flex-shrink: 0;
+    object-fit: contain;
   }
   .brand-text h1 {
     margin: 0;
@@ -96,7 +99,7 @@
   }
   @keyframes pulse { 50% { opacity: 0.45; } }
 
-  main { width: min(100% - 32px, 960px); margin: 0 auto; padding: 56px 0 80px; }
+  main { width: 100%; padding: 56px var(--page-gutter) 80px; }
   .hero { margin-bottom: 28px; animation: enter 400ms cubic-bezier(0.22, 1, 0.36, 1); }
   .hero h2 {
     max-width: 13ch;
@@ -179,8 +182,8 @@
   .post-preview[data-platform="youtube"] .post-fallback { background: linear-gradient(145deg, #ff0033, #49000e); }
   .platform-mark { font: 600 34px/1 var(--font-display); text-shadow: 0 2px 16px rgb(0 0 0 / 0.35); }
   .post-fallback-label { font-size: 12px; font-weight: 600; }
-  .preview-action { position: absolute; inset: auto 10px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: var(--radius-sm); background: rgb(0 0 0 / 0.72); backdrop-filter: blur(8px); color: white; font-size: 12px; font-weight: 600; }
-  .preview-play { color: var(--accent); }
+  .preview-action { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(40 44 50 / 0.82); color: white; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity var(--transition); }
+  .post-preview:hover .preview-action, .post-preview:focus-visible .preview-action { opacity: 1; }
   .meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
   .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
   .badge.platform { width: 34px; height: 28px; display: inline-grid; place-items: center; padding: 4px; background: var(--surface-raised); color: var(--ink); }
@@ -188,7 +191,7 @@
   .platform-mark .platform-logo { width: 42px; height: 42px; filter: drop-shadow(0 2px 10px rgb(0 0 0 / 0.35)); }
   .badge.cached { background: var(--surface-raised); color: var(--ink-muted); }
 
-  .verdict { padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .verdict { display: block; width: fit-content; margin: 4px 0 14px; padding: 8px 14px; border-radius: var(--radius-md); font: 700 clamp(30px, 3vw, 48px)/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.02em; }
   .verdict.well-supported, .verdict.true { background: var(--accent-dim); color: var(--accent); }
   .verdict.false { background: oklch(0.65 0.18 25 / 0.18); color: oklch(0.78 0.14 25); }
   .verdict.disputed, .verdict.mixed { background: oklch(0.75 0.14 85 / 0.18); color: oklch(0.82 0.12 85); }
@@ -198,16 +201,14 @@
 
   .content-box { max-height: 180px; overflow-y: auto; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-muted); font-size: 13px; line-height: 1.55; white-space: pre-wrap; }
 
-  .claims-list { margin: 0; padding-left: 20px; color: var(--ink-muted); font-size: 14px; line-height: 1.65; }
-  .claims-list li + li { margin-top: 8px; }
-
-  .evidence-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .topic-card { padding: clamp(22px, 2.5vw, 34px); }
+  .topic-title { max-width: 42ch; margin: 0 0 24px; color: var(--ink); font: 600 clamp(26px, 2.5vw, 38px)/1.15 var(--font-display); letter-spacing: -0.025em; text-wrap: balance; }
+  .topic-evidence { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(20px, 3vw, 48px); }
   .evidence-col { min-width: 0; }
-  .evidence-col h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 10px; }
+  .evidence-col h3 { margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; }
   .evidence-col.for h3 { color: var(--accent); }
   .evidence-col.against h3 { color: oklch(0.78 0.14 25); }
-  .evidence-item { padding: 12px 0; border-top: 1px solid var(--border-subtle); font-size: 13px; }
-  .evidence-item .claim { margin-bottom: 5px; color: var(--ink); font-weight: 600; }
+  .evidence-item { min-height: 96px; font-size: 14px; }
   .evidence-item .summary { margin-bottom: 8px; color: var(--ink-muted); line-height: 1.55; }
   .sources { margin-top: 8px; }
   .sources > summary { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg); color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; }
@@ -232,7 +233,7 @@
     form { padding-left: 14px; }
     button { padding-inline: 14px; }
     .result-overview { grid-template-columns: 1fr; align-items: start; }
-    .evidence-columns { grid-template-columns: 1fr; gap: 10px; }
+    .topic-evidence { grid-template-columns: 1fr; gap: 24px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -244,7 +245,7 @@
   <div class="app">
     <header class="header">
       <a class="brand" href="./">
-        <span class="brand-mark" aria-hidden="true">V</span>
+        <img class="brand-mark" src="/verifai-logo.svg" alt="" width="36" height="36" />
         <span class="brand-text">
           <h1>verif<span class="brand-ai">AI</span></h1>
           <p>Live fact-check · RocketRide + Linkup</p>
@@ -272,11 +273,6 @@
       <div id="error" role="alert"></div>
 
       <div id="result">
-    <div class="card" id="claims-card">
-      <h2 class="section-title">Claims checked</h2>
-      <ul class="claims-list" id="claims-list"></ul>
-    </div>
-
     <div class="card result-overview">
       <a id="post-link" class="post-preview" target="_blank" rel="noopener noreferrer">
         <img id="post-thumbnail" class="post-thumbnail" alt="" hidden />
@@ -284,30 +280,20 @@
           <span id="platform-mark" class="platform-mark"></span>
           <span class="post-fallback-label">Original post</span>
         </span>
-        <span class="preview-action">Open original <span class="preview-play" aria-hidden="true">▶</span></span>
+        <span class="preview-action">Open original</span>
       </a>
       <div>
+        <h2 class="section-title">Summary</h2>
         <div class="meta-row">
           <span id="platform-badge" class="badge platform"></span>
           <span id="cached-badge" class="badge cached" style="display:none">Previously analyzed</span>
-          <span id="verdict-badge" class="verdict"></span>
         </div>
+        <span id="verdict-badge" class="verdict"></span>
         <div class="decision-summary" id="decision-summary"></div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="evidence-columns">
-        <div class="evidence-col for">
-          <h3>Supporting evidence</h3>
-          <div id="evidence-for"></div>
-        </div>
-        <div class="evidence-col against">
-          <h3>Contradicting evidence</h3>
-          <div id="evidence-against"></div>
-        </div>
-      </div>
-    </div>
+    <div id="evidence-topics"></div>
 
     <details class="card collapsible-card" id="content-card">
       <summary>Extracted content</summary>
@@ -384,17 +370,27 @@
       ).join('')}</div></details>`;
     }
 
-    function renderEvidenceList(items) {
-      if (!items || items.length === 0) {
+    function renderEvidence(item) {
+      if (!item) {
         return '<p class="empty-note">No evidence found.</p>';
       }
-      return items.map(item => `
-        <div class="evidence-item">
-          <div class="claim">${escapeHtml(item.claim)}</div>
-          <div class="summary">${escapeHtml(item.summary)}</div>
-          ${renderSources(item.sources)}
-        </div>
-      `).join('');
+      return `<div class="evidence-item"><div class="summary">${escapeHtml(item.summary)}</div>${renderSources(item.sources)}</div>`;
+    }
+
+    function renderTopics(data) {
+      const supporting = data.evidenceFor || [];
+      const contradicting = data.evidenceAgainst || [];
+      return (data.claims || []).map((claim, index) => {
+        const evidenceFor = supporting.find(item => item.claim === claim) || supporting[index];
+        const evidenceAgainst = contradicting.find(item => item.claim === claim) || contradicting[index];
+        return `<section class="card topic-card">
+          <h2 class="topic-title">${escapeHtml(claim)}</h2>
+          <div class="topic-evidence">
+            <div class="evidence-col for"><h3>Supporting evidence</h3>${renderEvidence(evidenceFor)}</div>
+            <div class="evidence-col against"><h3>Contradicting evidence</h3>${renderEvidence(evidenceAgainst)}</div>
+          </div>
+        </section>`;
+      }).join('');
     }
 
     function renderResult(data) {
@@ -439,17 +435,7 @@
         contentCard.style.display = 'none';
       }
 
-      const claimsCard = document.getElementById('claims-card');
-      const claims = data.claims || [];
-      if (claims.length > 0) {
-        claimsCard.style.display = 'block';
-        document.getElementById('claims-list').innerHTML = claims.map(claim => `<li>${escapeHtml(claim)}</li>`).join('');
-      } else {
-        claimsCard.style.display = 'none';
-      }
-
-      document.getElementById('evidence-for').innerHTML = renderEvidenceList(data.evidenceFor);
-      document.getElementById('evidence-against').innerHTML = renderEvidenceList(data.evidenceAgainst);
+      document.getElementById('evidence-topics').innerHTML = renderTopics(data);
 
       resultEl.classList.add('visible');
     }
