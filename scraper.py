@@ -17,6 +17,7 @@ APIFY_BASE_URL = "https://api.apify.com/v2"
 INSTAGRAM_ACTOR = "crawlerbros~instagram-transcript-scraper"
 TIKTOK_ACTOR = "scrape-creators~best-tiktok-transcripts-scraper"
 X_ACTOR = "apple_yang~twitter-video-transcript-api"
+YOUTUBE_ACTOR = "starvibe~youtube-video-transcript"
 
 
 class ScrapeError(Exception):
@@ -65,10 +66,12 @@ async def scrape(url: str) -> ScrapeResult:
         return await _scrape_tiktok(url)
     if platform == "x":
         return await _scrape_x(url)
+    if platform == "youtube":
+        return await _scrape_youtube(url)
 
     raise UnsupportedPlatformError(
         f"The scraper for {platform} is not configured yet. Currently Instagram, "
-        f"TikTok, and X posts are supported."
+        f"TikTok, X, and YouTube posts are supported."
     )
 
 
@@ -154,6 +157,34 @@ async def _scrape_x(url: str) -> ScrapeResult:
 
     return ScrapeResult(
         platform="x",
+        content=content,
+        no_content_reason=None if content else "no_content",
+        raw=item,
+    )
+
+
+async def _scrape_youtube(url: str) -> ScrapeResult:
+    item = await _run_apify_actor(
+        YOUTUBE_ACTOR,
+        {"youtube_url": url, "language": "en", "include_transcript_text": True},
+    )
+    title = (item.get("title") or "").strip()
+    description = (item.get("description") or "").strip()
+    transcript = (item.get("transcript_text") or "").strip()
+    sections = []
+    if title:
+        sections.append(f"Video title:\n{title}")
+    if description:
+        sections.append(f"Video description:\n{description}")
+    if transcript:
+        sections.append(f"Spoken transcript:\n{transcript}")
+    content = "\n\n".join(sections) or None
+
+    if content is None and item.get("status") != "success":
+        raise ScrapeError(item.get("message") or "YouTube transcript extraction failed.")
+
+    return ScrapeResult(
+        platform="youtube",
         content=content,
         no_content_reason=None if content else "no_content",
         raw=item,

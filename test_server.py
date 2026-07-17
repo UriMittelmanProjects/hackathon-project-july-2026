@@ -5,15 +5,21 @@ import server
 
 
 class FactCheckTests(unittest.IsolatedAsyncioTestCase):
+    def test_youtube_cache_key_keeps_video_id_only(self):
+        self.assertEqual(
+            server.normalize_url("https://www.youtube.com/watch?v=abc123&si=tracking#fragment"),
+            "https://www.youtube.com/watch?v=abc123",
+        )
+
     async def test_invalid_json_retries_and_keeps_last_raw_answer(self):
         responses = [
             {"answers": ["not json"]},
             {"answers": ["still not json"]},
-            {"answers": ['{"claims": ["A claim"]}']},
+            {"answers": ['{"claims": ["A claim", "B claim", "C claim"]}']},
         ]
         with patch("server.chat_with_retry", AsyncMock(side_effect=responses)) as chat:
-            result = await server.ask_rocketride_json("prompt", "claim extraction")
-        self.assertEqual(result, {"claims": ["A claim"]})
+            result = await server.extract_claims("content")
+        self.assertEqual(result, ["A claim", "B claim"])
         self.assertEqual(chat.await_count, 3)
 
         with patch(
@@ -106,6 +112,33 @@ class XScraperTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.content, "Post text:\nPost claim.")
         self.assertIsNone(result.no_content_reason)
+
+
+class YouTubeScraperTests(unittest.IsolatedAsyncioTestCase):
+    async def test_youtube_actor_payload_and_content(self):
+        item = {
+            "status": "success",
+            "title": "Video title",
+            "description": "Video description",
+            "transcript_text": "Spoken claim.",
+        }
+        with patch("scraper._run_apify_actor", AsyncMock(return_value=item)) as actor:
+            result = await server.scraper.scrape("https://youtu.be/abc123")
+
+        actor.assert_awaited_once_with(
+            "starvibe~youtube-video-transcript",
+            {
+                "youtube_url": "https://youtu.be/abc123",
+                "language": "en",
+                "include_transcript_text": True,
+            },
+        )
+        self.assertEqual(result.platform, "youtube")
+        self.assertEqual(
+            result.content,
+            "Video title:\nVideo title\n\nVideo description:\nVideo description\n\n"
+            "Spoken transcript:\nSpoken claim.",
+        )
 
 
 if __name__ == "__main__":
