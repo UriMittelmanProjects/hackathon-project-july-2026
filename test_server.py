@@ -5,6 +5,31 @@ import server
 
 
 class FactCheckTests(unittest.IsolatedAsyncioTestCase):
+    def test_concise_text_keeps_a_complete_sentence_when_possible(self):
+        text = "This first sentence is clear. " + "word " * 50
+        self.assertEqual(server.concise_text(text, 12), "This first sentence is clear.")
+        self.assertLessEqual(len(server.concise_text("word " * 50, 12).split()), 12)
+        abbreviation = "The claim about Washington, D.C. is disputed. The claim about Washington, D.C. needs more context."
+        self.assertEqual(
+            server.concise_text(abbreviation, 12),
+            "The claim about Washington, D.C. is disputed.",
+        )
+        evidence = [{"summary": "word " * 50, "sources": list(range(10))}] * 3
+        concise = server.concise_evidence(evidence)
+        self.assertEqual(len(concise), 2)
+        self.assertEqual(len(concise[0]["sources"]), 4)
+
+    def test_thumbnail_url_uses_platform_field_and_rejects_unsafe_urls(self):
+        self.assertEqual(
+            server.thumbnail_url("instagram", {"thumbnailUrl": "https://example.com/post.jpg"}),
+            "https://example.com/post.jpg",
+        )
+        self.assertEqual(
+            server.thumbnail_url("x", {"img": "http://example.com/post.jpg"}),
+            "http://example.com/post.jpg",
+        )
+        self.assertIsNone(server.thumbnail_url("youtube", {"thumbnail": "javascript:alert(1)"}))
+
     def test_youtube_cache_key_keeps_video_id_only(self):
         self.assertEqual(
             server.normalize_url("https://www.youtube.com/watch?v=abc123&si=tracking#fragment"),
