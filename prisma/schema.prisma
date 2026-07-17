@@ -16,11 +16,11 @@ model PostEvaluation {
   postUrl  String @unique
   platform String
 
-  // Raw content extracted from the post (transcript for video, text for
-  // text posts). Null when nothing usable was found (see noContentReason).
+  // Raw content extracted from the post: caption/description and/or spoken
+  // transcript, combined. Null when nothing usable was found (see noContentReason).
   content         String?
   hasClaims       Boolean
-  noContentReason String? // e.g. "no_transcript", "no_text_content" - null when hasClaims is true
+  noContentReason String? // e.g. "no_content" - null when content was found
 
   claims          Json // string[]
   evidenceFor     Json // [{ claim, summary, sources: [{ url, name }] }]

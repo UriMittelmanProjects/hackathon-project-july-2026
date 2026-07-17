@@ -86,21 +86,27 @@ async def _scrape_instagram(url: str) -> ScrapeResult:
     if item.get("status") == "error" or item.get("errMsg"):
         raise ScrapeError(item.get("errMsg", "Unknown scraper error."))
 
-    # Per spec: video post descriptions/captions are deliberately disregarded -
-    # only the spoken transcript counts as checkable content.
     transcript = (item.get("fullText") or "").strip()
+    description = (item.get("postDescription") or "").strip()
 
-    if not transcript:
+    sections = []
+    if description:
+        sections.append(f"Post caption/description:\n{description}")
+    if transcript:
+        sections.append(f"Spoken transcript:\n{transcript}")
+    content = "\n\n".join(sections) or None
+
+    if content is None:
         return ScrapeResult(
             platform="instagram",
             content=None,
-            no_content_reason="no_transcript",
+            no_content_reason="no_content",
             raw=item,
         )
 
     return ScrapeResult(
         platform="instagram",
-        content=transcript,
+        content=content,
         no_content_reason=None,
         raw=item,
     )
