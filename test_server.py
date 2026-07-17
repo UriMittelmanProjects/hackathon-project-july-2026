@@ -86,5 +86,27 @@ class TikTokScraperTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result.no_content_reason)
 
 
+class XScraperTests(unittest.IsolatedAsyncioTestCase):
+    async def test_x_actor_combines_post_text_and_transcript(self):
+        item = {"title": "Post claim.", "text": "Spoken claim.", "errMsg": ""}
+        with patch("scraper._run_apify_actor", AsyncMock(return_value=item)) as actor:
+            result = await server.scraper.scrape("https://x.com/user/status/123")
+
+        actor.assert_awaited_once_with(
+            "apple_yang~twitter-video-transcript-api",
+            {"videoUrl": "https://x.com/user/status/123"},
+        )
+        self.assertEqual(result.platform, "x")
+        self.assertEqual(result.content, "Post text:\nPost claim.\n\nSpoken transcript:\nSpoken claim.")
+
+    async def test_x_keeps_post_text_when_audio_is_unavailable(self):
+        item = {"title": "Post claim.", "text": "", "errMsg": "no audio url found"}
+        with patch("scraper._run_apify_actor", AsyncMock(return_value=item)):
+            result = await server.scraper.scrape("https://twitter.com/user/status/123")
+
+        self.assertEqual(result.content, "Post text:\nPost claim.")
+        self.assertIsNone(result.no_content_reason)
+
+
 if __name__ == "__main__":
     unittest.main()
