@@ -193,6 +193,20 @@ def concise_evidence(items, claim_limit: int):
     return result
 
 
+def evidence_is_current(record) -> bool:
+    if not record.hasClaims:
+        return True
+    for supporting, contradicting in zip(record.evidenceFor, record.evidenceAgainst):
+        support_urls = {source.get("url") for source in supporting.get("sources", [])}
+        against_urls = {source.get("url") for source in contradicting.get("sources", [])}
+        for item in (supporting, contradicting):
+            if item.get("sources") and not item.get("quote"):
+                return False
+        if support_urls & against_urls:
+            return False
+    return len(record.evidenceFor) == len(record.evidenceAgainst) == len(record.claims)
+
+
 def serialize_evaluation(record) -> dict:
     claim_limit = CLAIM_LIMITS.get(record.platform, 3)
     return {
@@ -259,33 +273,74 @@ async def extract_claims(content: str, max_claims: int) -> list[str]:
     return [claim.strip() for claim in claims if claim.strip()][:max_claims]
 
 
-async def search_linkup(claim: str, direction: str) -> dict:
+async def search_linkup(claim: str, direction: str, exclude_domains=()) -> dict:
     api_key = os.environ.get("ROCKETRIDE_LINKUP_APIKEY")
     if not api_key:
         raise RuntimeError("ROCKETRIDE_LINKUP_APIKEY is not configured.")
 
+    side_label = {"for": "supporting", "against": "contradicting"}[direction]
     query = {
-        "for": f"Find credible evidence supporting this factual claim: {claim}",
-        "against": f"Find credible evidence contradicting, refuting, or qualifying this factual claim: {claim}",
-    }[direction] + " Summarize only the strongest evidence in at most 30 words using plain language."
+        "for": f"Find credible facts showing this claim is true: {claim}. Do not present facts showing it is false as support",
+        "against": f"Find credible facts showing this claim is false, misleading, or missing important context: {claim}. Search for reliable descriptions of what actually happened; a source need not mention the claim itself",
+    }[direction] + f". If none exists, begin with 'No credible {side_label} evidence found.' Otherwise summarize only the strongest evidence in at most 30 words."
+    excluded = {domain.removeprefix("www.").lower() for domain in exclude_domains if domain}
+    payload = {
+        "q": query,
+        "depth": "standard",
+        "outputType": "sourcedAnswer",
+        "maxResults": 6,
+    }
+    if excluded:
+        payload["excludeDomains"] = sorted(excluded)
     async with httpx.AsyncClient(timeout=90) as client:
         response = await client.post(
             LINKUP_URL,
             headers={"Authorization": f"Bearer {api_key}"},
-            json={"q": query, "depth": "standard", "outputType": "sourcedAnswer"},
+            json=payload,
         )
         response.raise_for_status()
 
     data = response.json()
-    sources = [
-        {"url": source["url"], "name": source.get("name") or source["url"]}
-        for source in data.get("sources", [])
-        if isinstance(source, dict) and source.get("url")
-    ][:3]
+    answer = data.get("answer") or ""
+    found = bool(answer) and not answer.casefold().startswith((
+        "no credible evidence",
+        "no evidence",
+        f"no credible {side_label} evidence",
+        f"no {side_label} evidence",
+    ))
+    sources = []
+    quote = ""
+    quote_source = ""
+    quote_score = -1
+    claim_terms = set(re.findall(r"[a-z0-9]{4,}", claim.casefold()))
+    for source in data.get("sources", []):
+        if not isinstance(source, dict) or not source.get("url"):
+            continue
+        domain = (urlsplit(source["url"]).hostname or "").removeprefix("www.").lower()
+        if domain in excluded:
+            continue
+        name = source.get("name") or source["url"]
+        sources.append({"url": source["url"], "name": name})
+        if isinstance(source.get("snippet"), str) and source["snippet"].strip():
+            score = len(claim_terms & set(re.findall(r"[a-z0-9]{4,}", source["snippet"].casefold())))
+            if score > quote_score:
+                quote = concise_text(source["snippet"], 35)
+                quote_source = name
+                quote_score = score
+        if len(sources) == 3:
+            break
+
+    if not quote:
+        sources = []
+        quote = ""
+        quote_source = ""
     return {
         "claim": claim,
-        "summary": data.get("answer") or "The search returned no useful evidence.",
+        "summary": answer if sources else f"No credible {side_label} evidence with a source quote was found.",
+        "quote": quote,
+        "quote_source": quote_source,
         "sources": sources,
+        "matches_side": found,
     }
 
 
@@ -322,9 +377,40 @@ async def run_factcheck(content: str, platform: str, job: dict | None = None) ->
                 phase="researching_evidence",
                 detail=f"Researching claim {index} of {len(claims)}",
             )
-        supporting, contradicting = await asyncio.gather(
-            search_linkup(claim, "for"), search_linkup(claim, "against")
-        )
+        supporting = await search_linkup(claim, "for")
+        supporting_domains = {
+            urlsplit(source["url"]).hostname
+            for source in supporting["sources"]
+            if urlsplit(source["url"]).hostname
+        } if supporting["matches_side"] else set()
+        contradicting = await search_linkup(claim, "against", supporting_domains)
+        supporting_matches = supporting.pop("matches_side")
+        contradicting_matches = contradicting.pop("matches_side")
+        rejected_support = supporting
+        if not supporting_matches:
+            supporting = {
+                "claim": claim,
+                "summary": "No credible supporting evidence was found.",
+                "quote": "",
+                "quote_source": "",
+                "sources": [],
+            }
+        if not contradicting_matches:
+            rebuttal = re.sub(
+                r"^No (?:credible )?(?:supporting )?evidence[^.]*\.\s*",
+                "",
+                rejected_support["summary"],
+                flags=re.IGNORECASE,
+            ).strip()
+            if rebuttal:
+                rejected_support["summary"] = rebuttal
+            contradicting = rejected_support if not supporting_matches and rejected_support["sources"] else {
+                "claim": claim,
+                "summary": "No credible contradicting evidence was found.",
+                "quote": "",
+                "quote_source": "",
+                "sources": [],
+            }
         evidence_for.append(supporting)
         evidence_against.append(contradicting)
 
@@ -353,20 +439,22 @@ async def process_factcheck(job_id: str, url: str, normalized_url: str) -> None:
         )
 
         job.update(phase="saving", detail=None)
-        saved = await db.postevaluation.create(
-            data={
-                "postUrl": normalized_url,
-                "platform": scraped.platform,
-                "content": scraped.content,
-                "hasClaims": result["has_claims"],
-                "noContentReason": scraped.no_content_reason,
-                "claims": Json(result["claims"]),
-                "evidenceFor": Json(result["evidence_for"]),
-                "evidenceAgainst": Json(result["evidence_against"]),
-                "verdict": result["verdict"],
-                "decisionSummary": result["decision_summary"],
-                "rawScraperOutput": Json(scraped.raw),
-            }
+        evaluation = {
+            "postUrl": normalized_url,
+            "platform": scraped.platform,
+            "content": scraped.content,
+            "hasClaims": result["has_claims"],
+            "noContentReason": scraped.no_content_reason,
+            "claims": Json(result["claims"]),
+            "evidenceFor": Json(result["evidence_for"]),
+            "evidenceAgainst": Json(result["evidence_against"]),
+            "verdict": result["verdict"],
+            "decisionSummary": result["decision_summary"],
+            "rawScraperOutput": Json(scraped.raw),
+        }
+        saved = await db.postevaluation.upsert(
+            where={"postUrl": normalized_url},
+            data={"create": evaluation, "update": evaluation},
         )
         job.update(phase="done", detail=None, result={"cached": False, **serialize_evaluation(saved)})
     except Exception as exc:
@@ -387,7 +475,7 @@ async def factcheck(req: FactCheckRequest, background_tasks: BackgroundTasks):
 
     db: Prisma = state["db"]
     existing = await db.postevaluation.find_unique(where={"postUrl": normalized_url})
-    if existing:
+    if existing and evidence_is_current(existing):
         job.update(phase="done", result={"cached": True, **serialize_evaluation(existing)})
     else:
         background_tasks.add_task(process_factcheck, job_id, req.url, normalized_url)

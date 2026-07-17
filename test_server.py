@@ -1,5 +1,6 @@
 import unittest
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import server
 
@@ -67,8 +68,14 @@ class FactCheckTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.raw, "raw failure")
 
     async def test_every_claim_gets_both_linkup_searches(self):
-        async def search(claim, direction):
-            return {"claim": claim, "summary": direction, "sources": [{"url": direction}]}
+        async def search(claim, direction, exclude_domains=()):
+            return {
+                "claim": claim,
+                "summary": direction,
+                "quote": f"{direction} quote",
+                "sources": [{"url": f"https://{direction}.example/evidence"}],
+                "matches_side": True,
+            }
 
         with (
             patch("server.extract_claims", AsyncMock(return_value=["one", "two"])),
@@ -85,7 +92,81 @@ class FactCheckTests(unittest.IsolatedAsyncioTestCase):
             {(call.args[0], call.args[1]) for call in linkup.await_args_list},
             {("one", "for"), ("one", "against"), ("two", "for"), ("two", "against")},
         )
-        self.assertEqual(result["evidence_for"][0]["sources"], [{"url": "for"}])
+        self.assertEqual(linkup.await_args_list[1].args[2], {"for.example"})
+        self.assertEqual(linkup.await_args_list[3].args[2], {"for.example"})
+
+    async def test_linkup_keeps_one_quote_and_excludes_other_side_domains(self):
+        response = MagicMock()
+        response.json.return_value = {
+            "answer": "Distinct contradicting evidence.",
+            "sources": [
+                {
+                    "url": "https://used.example/repeated",
+                    "name": "Repeated source",
+                    "snippet": "Repeated excerpt.",
+                },
+                {
+                    "url": "https://new.example/evidence",
+                    "name": "Distinct source",
+                    "snippet": "A direct source excerpt that contradicts the claim.",
+                },
+            ],
+        }
+        with patch("server.httpx.AsyncClient.post", AsyncMock(return_value=response)) as post:
+            result = await server.search_linkup("claim", "against", {"used.example"})
+
+        self.assertEqual(post.await_args.kwargs["json"]["excludeDomains"], ["used.example"])
+        self.assertEqual(result["quote"], "A direct source excerpt that contradicts the claim.")
+        self.assertEqual(result["quote_source"], "Distinct source")
+        self.assertEqual(result["sources"], [{"url": "https://new.example/evidence", "name": "Distinct source"}])
+        self.assertTrue(result["matches_side"])
+
+        response.json.return_value["answer"] = "No credible supporting evidence found."
+        with patch("server.httpx.AsyncClient.post", AsyncMock(return_value=response)):
+            empty = await server.search_linkup("claim", "for")
+        self.assertFalse(empty["matches_side"])
+
+    async def test_support_search_rebuttal_falls_back_to_contradicting_side(self):
+        rejected_support = {
+            "claim": "claim",
+            "summary": "No credible supporting evidence found. The records show the opposite.",
+            "quote": "Direct rebuttal.",
+            "quote_source": "Source",
+            "sources": [{"url": "https://rebuttal.example", "name": "Source"}],
+            "matches_side": False,
+        }
+        no_contradiction = {
+            "claim": "claim",
+            "summary": "No contradiction found.",
+            "quote": "",
+            "quote_source": "",
+            "sources": [],
+            "matches_side": False,
+        }
+        with (
+            patch("server.extract_claims", AsyncMock(return_value=["claim"])),
+            patch("server.search_linkup", AsyncMock(side_effect=[rejected_support, no_contradiction])),
+            patch("server.synthesize_verdict", AsyncMock(return_value={"verdict": "false", "decision_summary": "False."})),
+        ):
+            result = await server.run_factcheck("content", "instagram")
+
+        self.assertEqual(result["evidence_for"][0]["sources"], [])
+        self.assertEqual(result["evidence_against"][0]["quote"], "Direct rebuttal.")
+        self.assertEqual(result["evidence_against"][0]["summary"], "The records show the opposite.")
+
+    def test_old_or_overlapping_cached_evidence_is_refreshed(self):
+        record = SimpleNamespace(
+            hasClaims=True,
+            claims=["claim"],
+            evidenceFor=[{"quote": "support", "sources": [{"url": "https://for.example"}]}],
+            evidenceAgainst=[{"quote": "against", "sources": [{"url": "https://against.example"}]}],
+        )
+        self.assertTrue(server.evidence_is_current(record))
+        record.evidenceAgainst[0]["sources"][0]["url"] = "https://for.example"
+        self.assertFalse(server.evidence_is_current(record))
+        record.evidenceAgainst[0]["sources"][0]["url"] = "https://against.example"
+        del record.evidenceAgainst[0]["quote"]
+        self.assertFalse(server.evidence_is_current(record))
 
     async def test_job_error_surfaces_truncated_raw_answer(self):
         job_id = "test-job"

@@ -210,6 +210,8 @@
   .evidence-col.against h3 { color: oklch(0.78 0.14 25); }
   .evidence-item { min-height: 96px; font-size: 14px; }
   .evidence-item .summary { margin-bottom: 8px; color: var(--ink-muted); line-height: 1.55; }
+  .evidence-quote { margin: 12px 0; padding-left: 14px; border-left: 3px solid var(--border); color: var(--ink); font: 500 15px/1.5 var(--font-display); }
+  .evidence-quote cite { display: block; margin-top: 5px; color: var(--ink-muted); font: 12px/1.4 var(--font-ui); }
   .sources { margin-top: 8px; }
   .sources > summary { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--bg); color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; }
   .sources > summary::-webkit-details-marker, .collapsible-card > summary::-webkit-details-marker { display: none; }
@@ -374,7 +376,8 @@
       if (!item) {
         return '<p class="empty-note">No evidence found.</p>';
       }
-      return `<div class="evidence-item"><div class="summary">${escapeHtml(item.summary)}</div>${renderSources(item.sources)}</div>`;
+      const quote = item.quote ? `<blockquote class="evidence-quote">“${escapeHtml(item.quote)}”${item.quote_source ? `<cite>— ${escapeHtml(item.quote_source)}</cite>` : ''}</blockquote>` : '';
+      return `<div class="evidence-item"><div class="summary">${escapeHtml(item.summary)}</div>${quote}${renderSources(item.sources)}</div>`;
     }
 
     function renderTopics(data) {

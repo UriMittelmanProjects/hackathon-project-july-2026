@@ -23,7 +23,7 @@ model PostEvaluation {
   noContentReason String? // e.g. "no_content" - null when content was found
 
   claims          Json // string[]
-  evidenceFor     Json // [{ claim, summary, sources: [{ url, name }] }]
+  evidenceFor     Json // [{ claim, summary, quote, quote_source, sources: [{ url, name }] }]
   evidenceAgainst Json // same shape as evidenceFor
 
   verdict         String // e.g. "well-supported" | "disputed" | "false" | "mixed" | "no_claims" | "unverified"
